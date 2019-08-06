@@ -15,15 +15,20 @@ export BUILD_SYS
 export HOST_SYS="${MULTIMACH_TARGET_SYS}"
 export STAGING_LIBDIR
 
-PV = "1.4.0"
+PATCHTOOL = "git"
+
+PV = "2.0.0"
 SRC_URI = "git://github.com/gnuradio/volk.git;branch=master \
-           file://0001-Check-for-lib64-verus-lib-and-set-LIB_SUFFIX-accordi.patch \
           "
+# file://0001-Check-for-lib64-verus-lib-and-set-LIB_SUFFIX-accordi.patch
+# file://0001-CMAKE_ASM_FLAGS-should-be-set-in-the-toolchain-file.patch
+# file://0002-Adds-CMAKE_ASM_FLAGS-to-arm-toolchain-files.patch
+# file://0003-Update-asm-flag-handing-for-arm-linux-gnueabihf.cmak.patch
 SRC_URI_append_ettus-e300 = "file://volk_config"
 
 S = "${WORKDIR}/git"
 
-SRCREV = "17277ed3130e9b2592da06c681657e63b5590c56"
+SRCREV = "1299d72c396a88fd2679adfd7a919ac00d2cf678"
 
 PACKAGES += "${PN}-modtool"
 
