@@ -169,7 +169,7 @@ python populate_packages_prepend() {
 #                       extra_depends='',
 #                       prepend=True,
 #                       allow_links=True)
-# 
+#
 #     # Development packages (-dev)
 #     pkgs=do_split_packages(d, gnuradio_libdir, '^lib([a-z]*\-[a-z]*)(?:|\-3\.7\.10\.2)\.so$',
 #                       output_pattern='lib%s-dev',
@@ -204,7 +204,7 @@ python populate_packages_prepend() {
                       extra_depends='${PN}-dev',
                       prepend=True,
                       allow_links=True)
-                      
+
     #do_split_packages(d, gnuradio_pkgconfig, '^lib(.*)\.pc$',
     #                  output_pattern='lib%s-dev',
     #                  description='gnuradio %s development package',
@@ -214,11 +214,11 @@ python populate_packages_prepend() {
         d.appendVar('RDEPENDS_${PN}-dev', ' '+' '.join(pkgs))
 }
 
-PV = "3.7.13.4"
+PV = "3.7.13.5"
 
 FILESPATHPKG_prepend = "gnuradio-git:"
 
-SRCREV = "14d2bfac73193bf36c32d5ae009b31786b1ed510"
+SRCREV = "c6c5753091cb1137cffbf5ae731e37870139f700"
 
 # Make it easy to test against branches
 GIT_BRANCH = "maint-3.7"
@@ -242,4 +242,3 @@ EXTRA_OECMAKE = "-DENABLE_GR_ATSC=FALSE \
 "
 
 inherit distutils-base cmake pkgconfig
-
