@@ -23,7 +23,10 @@ export BUILD_SYS
 export HOST_SYS="${MULTIMACH_TARGET_SYS}"
 
 
+PACKAGES =+ "libgnuradio-osmosdr"
+RDEPENDS_${PN} += "libgnuradio-osmosdr"
 FILES_${PN} += "${datadir}/gnuradio/grc/blocks/*"
+FILES_libgnuradio-osmosdr = "${libdir}/*.so.*"
 
 PV = "0.1.4.1"
 
