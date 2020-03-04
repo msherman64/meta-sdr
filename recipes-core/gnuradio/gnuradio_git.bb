@@ -36,7 +36,7 @@ RRECOMMENDS_${PN} = "${GR_PACKAGES}"
 
 RDEPENDS_${PN}-grc = "python3-mako python3-pyyaml python3-pygobject gtk+3 cairo adwaita-icon-theme"
 
-RDEPENDS_${PN}-qtgui = "python3-pyqt5 python3-sip3"
+RDEPENDS_${PN}-qtgui = "python3-pyqt5 python3-sip3 virtual/qt5-fonts"
 
 RDEPENDS_${PN}-zeromq = "python3-pyzmq"
 
@@ -67,7 +67,7 @@ GR_PACKAGES = "gnuradio-analog gnuradio-audio gnuradio-blocks \
             gnuradio-doc gnuradio-zeromq \
             "
 GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'qtgui4', 'gnuradio-qtgui', '', d)}"
-GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'qtgui5', 'gnuradio-qtgui', '', d)}"
+GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'qtgui5', 'gnuradio-qtgui, gnuradio-qtgui-fontslink', '', d)}"
 GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'grc', 'gnuradio-grc', '', d)}"
 
 PACKAGES = "gnuradio-dbg gnuradio-staticdev gnuradio-dev ${GR_PACKAGES} gnuradio"
@@ -122,6 +122,8 @@ FILES_${PN}-qtgui = "${bindir}/gr_psd_plot* ${bindir}/gr_spectrogram_plot* \
                      ${sysconfdir}/gnuradio/qtgui ${sysconfdir}/gnuradio/conf.d/gr-qtgui.conf \
                      ${PYTHON_SITEPACKAGES_DIR}/gnuradio/qtgui \
                      ${datadir}/gnuradio/themes"
+FILES_${PN}-qtgui-fontslink = "${libdir}/fonts"
+RPROVIDES_${PN}-qtgui-fontslink = "virtual/qt5-fonts"
 FILES_${PN}-runtime = "${sysconfdir}/gnuradio/conf.d/gnuradio-runtime.conf \
                        ${bindir}/gnuradio-config-info \
                        ${PYTHON_SITEPACKAGES_DIR}/gnuradio/eng_* \
@@ -244,3 +246,7 @@ EXTRA_OECMAKE = "\
                  ${@bb.utils.contains('TUNE_FEATURES', 'neon', \
                      '-Dhave_mfpu_neon=1', '-Dhave_mfpu_neon=0', d)} \
 "
+
+do_install_append() {
+    ${@bb.utils.contains('PACKAGECONFIG', 'qtgui5', 'mkdir -p ${D}${libdir} && ln -sf ${datadir}/fonts/ttf ${D}${libdir}/fonts', '', d)}
+}
