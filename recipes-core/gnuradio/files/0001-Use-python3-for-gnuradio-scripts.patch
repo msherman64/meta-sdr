@@ -1,0 +1,29 @@
+From 3a91756f0d22bda57251d5c4b5bb5d88baddaf9e Mon Sep 17 00:00:00 2001
+From: Joerg Hofrichter <joerg.hofrichter@ni.com>
+Date: Wed, 4 Mar 2020 14:38:10 +0100
+Subject: [PATCH] Use python3 for gnuradio scripts
+
+Replace "/usr/bin/env python" by "/usr/bin/env python3" (this affects
+gnuradio-companion and grcc)
+
+Signed-off-by: Joerg Hofrichter <joerg.hofrichter@ni.com>
+---
+ cmake/Modules/GrPython.cmake | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cmake/Modules/GrPython.cmake b/cmake/Modules/GrPython.cmake
+index fd9b7583a..670a15f5a 100644
+--- a/cmake/Modules/GrPython.cmake
++++ b/cmake/Modules/GrPython.cmake
+@@ -293,7 +293,7 @@ function(GR_PYTHON_INSTALL)
+         file(TO_NATIVE_PATH ${PYTHON_EXECUTABLE} pyexe_native)
+ 
+         if (CMAKE_CROSSCOMPILING)
+-           set(pyexe_native "/usr/bin/env python")
++           set(pyexe_native "/usr/bin/env python3")
+         endif()
+ 
+         foreach(pyfile ${GR_PYTHON_INSTALL_PROGRAMS})
+-- 
+2.17.1
+
