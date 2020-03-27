@@ -1,0 +1,3924 @@
+From 39b093b482f9f13793f582afc70fd3758aced1bb Mon Sep 17 00:00:00 2001
+From: Martin Braun <martin.braun@ettus.com>
+Date: Mon, 27 Jan 2020 11:47:44 -0800
+Subject: [PATCH] uhd: Add support for UHD 4.0 feature: RFNoC
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This merges the code required to run UHD 4.0 RFNoC features within GNU
+Radio. For UHD 4.0, this replaces the requirement to install gr-ettus
+(the OOT module for experimental features produced by Ettus Research
+/ NI).
+
+The features added by this commit will only be compiled and included in
+gr-uhd if the underlying UHD version is at least 4.0.
+
+This commit includes the following components:
+
+- Block controllers for radio, DDC/DUC, FFT block (C++ and GRC)
+- Blocks for streamers (ingress/egress)
+- GRC bindings for GRC-based image builder
+- GRC domains for RFNoC, ctrl_port, timekeeper bus, and radio
+  connections
+
+Co-Authored-By: Marcus Müller <mmueller@gnuradio.org>
+---
+ gr-uhd/CMakeLists.txt                         |   9 +-
+ gr-uhd/examples/grc/rfnoc_radio_ddc.grc       | 264 ++++++++++++++++++
+ gr-uhd/grc/CMakeLists.txt                     |  27 ++
+ gr-uhd/grc/rfnoc.domain.yml                   |  10 +
+ gr-uhd/grc/uhd.tree.yml                       |  23 ++
+ gr-uhd/grc/uhd_fpga_clk.domain.yml            |   9 +
+ gr-uhd/grc/uhd_fpga_ctrl.domain.yml           |   9 +
+ gr-uhd/grc/uhd_fpga_data.domain.yml           |   9 +
+ gr-uhd/grc/uhd_fpga_ddc.block.yml             |  38 +++
+ gr-uhd/grc/uhd_fpga_duc.block.yml             |  37 +++
+ gr-uhd/grc/uhd_fpga_fft.block.yml             |  12 +
+ gr-uhd/grc/uhd_fpga_io_ctrl_port.domain.yml   |   9 +
+ gr-uhd/grc/uhd_fpga_io_radio.domain.yml       |   9 +
+ gr-uhd/grc/uhd_fpga_io_time_keeper.domain.yml |   9 +
+ gr-uhd/grc/uhd_fpga_radio.block.yml           |  47 ++++
+ gr-uhd/grc/uhd_fpga_sep.block.yml             |  45 +++
+ gr-uhd/grc/uhd_fpga_x310.block.yml            |  38 +++
+ gr-uhd/grc/uhd_rfnoc_ddc.block.yml            |  57 ++++
+ gr-uhd/grc/uhd_rfnoc_duc.block.yml            |  56 ++++
+ gr-uhd/grc/uhd_rfnoc_fft.block.yml            |  45 +++
+ gr-uhd/grc/uhd_rfnoc_graph.block.yml          | 127 +++++++++
+ gr-uhd/grc/uhd_rfnoc_rx_radio.block.yml       |  91 ++++++
+ gr-uhd/grc/uhd_rfnoc_rx_streamer.block.yml    |  57 ++++
+ gr-uhd/grc/uhd_rfnoc_tx_radio.block.yml       |  77 +++++
+ gr-uhd/grc/uhd_rfnoc_tx_streamer.block.yml    |  53 ++++
+ gr-uhd/include/gnuradio/uhd/CMakeLists.txt    |  18 +-
+ gr-uhd/include/gnuradio/uhd/rfnoc_block.h     |  89 ++++++
+ .../gnuradio/uhd/rfnoc_block_generic.h        |  50 ++++
+ gr-uhd/include/gnuradio/uhd/rfnoc_ddc.h       |  62 ++++
+ gr-uhd/include/gnuradio/uhd/rfnoc_duc.h       |  59 ++++
+ gr-uhd/include/gnuradio/uhd/rfnoc_graph.h     | 135 +++++++++
+ gr-uhd/include/gnuradio/uhd/rfnoc_rx_radio.h  | 168 +++++++++++
+ .../include/gnuradio/uhd/rfnoc_rx_streamer.h  |  62 ++++
+ gr-uhd/include/gnuradio/uhd/rfnoc_tx_radio.h  | 146 ++++++++++
+ .../include/gnuradio/uhd/rfnoc_tx_streamer.h  |  59 ++++
+ gr-uhd/lib/CMakeLists.txt                     |  24 +-
+ gr-uhd/lib/rfnoc_block.cc                     |  62 ++++
+ gr-uhd/lib/rfnoc_block_generic_impl.cc        |  43 +++
+ gr-uhd/lib/rfnoc_block_generic_impl.h         |  27 ++
+ gr-uhd/lib/rfnoc_ddc_impl.cc                  |  52 ++++
+ gr-uhd/lib/rfnoc_ddc_impl.h                   |  37 +++
+ gr-uhd/lib/rfnoc_duc_impl.cc                  |  52 ++++
+ gr-uhd/lib/rfnoc_duc_impl.h                   |  37 +++
+ gr-uhd/lib/rfnoc_graph_impl.cc                | 214 ++++++++++++++
+ gr-uhd/lib/rfnoc_rx_radio_impl.cc             | 133 +++++++++
+ gr-uhd/lib/rfnoc_rx_radio_impl.h              |  51 ++++
+ gr-uhd/lib/rfnoc_rx_streamer_impl.cc          | 192 +++++++++++++
+ gr-uhd/lib/rfnoc_rx_streamer_impl.h           |  73 +++++
+ gr-uhd/lib/rfnoc_tx_radio_impl.cc             | 119 ++++++++
+ gr-uhd/lib/rfnoc_tx_radio_impl.h              |  48 ++++
+ gr-uhd/lib/rfnoc_tx_streamer_impl.cc          |  93 ++++++
+ gr-uhd/lib/rfnoc_tx_streamer_impl.h           |  59 ++++
+ gr-uhd/swig/CMakeLists.txt                    |   3 +
+ gr-uhd/swig/uhd_swig.i                        |  53 +++-
+ 54 files changed, 3376 insertions(+), 11 deletions(-)
+ create mode 100644 gr-uhd/examples/grc/rfnoc_radio_ddc.grc
+ create mode 100644 gr-uhd/grc/rfnoc.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_clk.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_ctrl.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_data.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_ddc.block.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_duc.block.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_fft.block.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_io_ctrl_port.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_io_radio.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_io_time_keeper.domain.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_radio.block.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_sep.block.yml
+ create mode 100644 gr-uhd/grc/uhd_fpga_x310.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_ddc.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_duc.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_fft.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_graph.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_rx_radio.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_rx_streamer.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_tx_radio.block.yml
+ create mode 100644 gr-uhd/grc/uhd_rfnoc_tx_streamer.block.yml
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_block.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_block_generic.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_ddc.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_duc.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_graph.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_rx_radio.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_rx_streamer.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_tx_radio.h
+ create mode 100644 gr-uhd/include/gnuradio/uhd/rfnoc_tx_streamer.h
+ create mode 100644 gr-uhd/lib/rfnoc_block.cc
+ create mode 100644 gr-uhd/lib/rfnoc_block_generic_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_block_generic_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_ddc_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_ddc_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_duc_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_duc_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_graph_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_rx_radio_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_rx_radio_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_rx_streamer_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_rx_streamer_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_tx_radio_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_tx_radio_impl.h
+ create mode 100644 gr-uhd/lib/rfnoc_tx_streamer_impl.cc
+ create mode 100644 gr-uhd/lib/rfnoc_tx_streamer_impl.h
+
+diff --git a/gr-uhd/CMakeLists.txt b/gr-uhd/CMakeLists.txt
+index e05f01ebf..d79e30937 100644
+--- a/gr-uhd/CMakeLists.txt
++++ b/gr-uhd/CMakeLists.txt
+@@ -11,6 +11,11 @@
+ include(GrBoost)
+ 
+ find_package(UHD "3.9.7")
++if ("${UHD_VERSION}" VERSION_GREATER_EQUAL "4")
++    set(ENABLE_UHD_RFNOC TRUE)
++else()
++    set(ENABLE_UHD_RFNOC FALSE)
++endif()
+ 
+ ########################################################################
+ # Register component
+@@ -24,14 +29,14 @@ GR_REGISTER_COMPONENT("gr-uhd" ENABLE_GR_UHD
+     ENABLE_GR_BLOCKS
+     ENABLE_GR_ANALOG
+ )
+-message(STATUS "  UHD Version: ${UHD_VERSION}")
+-
+ SET(GR_PKG_UHD_EXAMPLES_DIR ${GR_PKG_DATA_DIR}/examples/uhd)
+ 
+ ########################################################################
+ # Begin conditional configuration
+ ########################################################################
+ if(ENABLE_GR_UHD)
++message(STATUS "  UHD Version: ${UHD_VERSION}")
++message(STATUS "  UHD 4.0 RFNoC enabled: ${ENABLE_UHD_RFNOC}")
+ 
+ ########################################################################
+ # Add subdirectories
+diff --git a/gr-uhd/examples/grc/rfnoc_radio_ddc.grc b/gr-uhd/examples/grc/rfnoc_radio_ddc.grc
+new file mode 100644
+index 000000000..6c473b487
+--- /dev/null
++++ b/gr-uhd/examples/grc/rfnoc_radio_ddc.grc
+@@ -0,0 +1,264 @@
++options:
++  parameters:
++    author: Martin Braun <martin.braun@ettus.com>
++    catch_exceptions: 'True'
++    category: '[GRC Hier Blocks]'
++    cmake_opt: ''
++    comment: ''
++    copyright: ''
++    description: ''
++    gen_cmake: 'On'
++    gen_linking: dynamic
++    generate_options: qt_gui
++    hier_block_src_path: '.:'
++    id: rfnoc_radio_ddc
++    max_nouts: '0'
++    output_language: python
++    placement: (0,0)
++    qt_qss_theme: ''
++    realtime_scheduling: ''
++    run: 'True'
++    run_command: '{python} -u {filename}'
++    run_options: prompt
++    sizing_mode: fixed
++    thread_safe_setters: ''
++    title: 'RFNoC: Radio -> DDC Example'
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [8, 8]
++    rotation: 0
++    state: enabled
++
++blocks:
++- name: freq
++  id: variable_qtgui_entry
++  parameters:
++    comment: ''
++    gui_hint: ''
++    label: Frequency (Hz)
++    type: real
++    value: 1e9
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [304, 71]
++    rotation: 0
++    state: true
++- name: gain
++  id: variable_qtgui_entry
++  parameters:
++    comment: ''
++    gui_hint: ''
++    label: Gain (dB)
++    type: int
++    value: '0'
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [193, 71]
++    rotation: 0
++    state: true
++- name: samp_rate
++  id: variable_qtgui_entry
++  parameters:
++    comment: ''
++    gui_hint: ''
++    label: Sampling Rate (Hz)
++    type: real
++    value: 1e6
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [441, 72]
++    rotation: 0
++    state: true
++- name: uhd_rfnoc_graph
++  id: uhd_rfnoc_graph
++  parameters:
++    alias: ''
++    clock_source_0: ''
++    clock_source_1: ''
++    clock_source_2: ''
++    clock_source_3: ''
++    clock_source_4: ''
++    clock_source_5: ''
++    clock_source_6: ''
++    clock_source_7: ''
++    comment: ''
++    dev_addr: type=x300
++    dev_args: ''
++    num_mboards: '1'
++    time_source_0: ''
++    time_source_1: ''
++    time_source_2: ''
++    time_source_3: ''
++    time_source_4: ''
++    time_source_5: ''
++    time_source_6: ''
++    time_source_7: ''
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [193, 10]
++    rotation: 0
++    state: true
++- name: qtgui_freq_sink_x_0
++  id: qtgui_freq_sink_x
++  parameters:
++    affinity: ''
++    alias: ''
++    alpha1: '1.0'
++    alpha10: '1.0'
++    alpha2: '1.0'
++    alpha3: '1.0'
++    alpha4: '1.0'
++    alpha5: '1.0'
++    alpha6: '1.0'
++    alpha7: '1.0'
++    alpha8: '1.0'
++    alpha9: '1.0'
++    autoscale: 'False'
++    average: '1.0'
++    axislabels: 'True'
++    bw: samp_rate
++    color1: '"blue"'
++    color10: '"dark blue"'
++    color2: '"red"'
++    color3: '"green"'
++    color4: '"black"'
++    color5: '"cyan"'
++    color6: '"magenta"'
++    color7: '"yellow"'
++    color8: '"dark red"'
++    color9: '"dark green"'
++    comment: ''
++    ctrlpanel: 'False'
++    fc: '0'
++    fftsize: '1024'
++    freqhalf: 'True'
++    grid: 'False'
++    gui_hint: ''
++    label: Relative Gain
++    label1: ''
++    label10: ''''''
++    label2: ''''''
++    label3: ''''''
++    label4: ''''''
++    label5: ''''''
++    label6: ''''''
++    label7: ''''''
++    label8: ''''''
++    label9: ''''''
++    legend: 'True'
++    maxoutbuf: '0'
++    minoutbuf: '0'
++    name: '""'
++    nconnections: '1'
++    showports: 'False'
++    tr_chan: '0'
++    tr_level: '0.0'
++    tr_mode: qtgui.TRIG_MODE_FREE
++    tr_tag: '""'
++    type: complex
++    units: dB
++    update_time: '0.10'
++    width1: '1'
++    width10: '1'
++    width2: '1'
++    width3: '1'
++    width4: '1'
++    width5: '1'
++    width6: '1'
++    width7: '1'
++    width8: '1'
++    width9: '1'
++    wintype: firdes.WIN_BLACKMAN_hARRIS
++    ymax: '10'
++    ymin: '-140'
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [852, 244]
++    rotation: 0
++    state: true
++- name: uhd_rfnoc_ddc_0
++  id: uhd_rfnoc_ddc
++  parameters:
++    affinity: ''
++    alias: ''
++    block_args: ''
++    comment: ''
++    device_select: '-1'
++    freq: '0'
++    instance_index: '-1'
++    maxoutbuf: '0'
++    minoutbuf: '0'
++    num_chans: '1'
++    output_rate: samp_rate
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [321, 200]
++    rotation: 0
++    state: true
++- name: uhd_rfnoc_rx_radio_0
++  id: uhd_rfnoc_rx_radio
++  parameters:
++    affinity: ''
++    agc: Default
++    alias: ''
++    antenna: RX2
++    bandwidth: '0'
++    block_args: ''
++    comment: ''
++    dc_offset: 'False'
++    device_select: '-1'
++    frequency: freq
++    gain: gain
++    instance_index: '-1'
++    iq_balance: 'False'
++    maxoutbuf: '0'
++    minoutbuf: '0'
++    num_chans: '1'
++    rate: 200e6
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [18, 152]
++    rotation: 0
++    state: true
++- name: uhd_rfnoc_rx_streamer_0
++  id: uhd_rfnoc_rx_streamer
++  parameters:
++    affinity: ''
++    alias: ''
++    comment: ''
++    maxoutbuf: '0'
++    minoutbuf: '0'
++    num_chans: '1'
++    otw: sc16
++    output_type: fc32
++  states:
++    bus_sink: false
++    bus_source: false
++    bus_structure: null
++    coordinate: [633, 244]
++    rotation: 0
++    state: true
++
++connections:
++- [uhd_rfnoc_ddc_0, '0', uhd_rfnoc_rx_streamer_0, '0']
++- [uhd_rfnoc_rx_radio_0, '0', uhd_rfnoc_ddc_0, '0']
++- [uhd_rfnoc_rx_streamer_0, '0', qtgui_freq_sink_x_0, '0']
++
++metadata:
++  file_format: 1
+diff --git a/gr-uhd/grc/CMakeLists.txt b/gr-uhd/grc/CMakeLists.txt
+index 500859f88..044b716a7 100644
+--- a/gr-uhd/grc/CMakeLists.txt
++++ b/gr-uhd/grc/CMakeLists.txt
+@@ -31,3 +31,30 @@ install(FILES
+     uhd.tree.yml
+     DESTINATION ${GRC_BLOCKS_DIR}
+ )
++
++if(ENABLE_UHD_RFNOC)
++    install(FILES
++        rfnoc.domain.yml
++        uhd_fpga_clk.domain.yml
++        uhd_fpga_ctrl.domain.yml
++        uhd_fpga_data.domain.yml
++        uhd_fpga_ddc.block.yml
++        uhd_fpga_duc.block.yml
++        uhd_fpga_fft.block.yml
++        uhd_fpga_io_ctrl_port.domain.yml
++        uhd_fpga_io_radio.domain.yml
++        uhd_fpga_io_time_keeper.domain.yml
++        uhd_fpga_radio.block.yml
++        uhd_fpga_sep.block.yml
++        uhd_fpga_x310.block.yml
++        uhd_rfnoc_ddc.block.yml
++        uhd_rfnoc_duc.block.yml
++        uhd_rfnoc_fft.block.yml
++        uhd_rfnoc_graph.block.yml
++        uhd_rfnoc_rx_radio.block.yml
++        uhd_rfnoc_rx_streamer.block.yml
++        uhd_rfnoc_tx_radio.block.yml
++        uhd_rfnoc_tx_streamer.block.yml
++        DESTINATION ${GRC_BLOCKS_DIR}
++    )
++endif(ENABLE_UHD_RFNOC)
+diff --git a/gr-uhd/grc/rfnoc.domain.yml b/gr-uhd/grc/rfnoc.domain.yml
+new file mode 100644
+index 000000000..576086499
+--- /dev/null
++++ b/gr-uhd/grc/rfnoc.domain.yml
+@@ -0,0 +1,10 @@
++id: rfnoc
++label: RFNoC
++color: "#81b35d"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: false
++
++templates:
++-   type: [rfnoc, rfnoc]
++    connect: self.rfnoc_graph.connect(self.${ source.parent_block.name }.get_unique_id(), ${ source.key }, self.${ sink.parent_block.name }.get_unique_id(), ${ sink.key }, False)
+diff --git a/gr-uhd/grc/uhd.tree.yml b/gr-uhd/grc/uhd.tree.yml
+index a4d140d77..e5c0c6187 100644
+--- a/gr-uhd/grc/uhd.tree.yml
++++ b/gr-uhd/grc/uhd.tree.yml
+@@ -3,3 +3,26 @@
+   - uhd_usrp_source
+   - uhd_usrp_sink
+   - uhd_amsg_source
++  - RFNoC:
++    - Device Control:
++      - uhd_rfnoc_graph
++    - Blocks:
++      - uhd_rfnoc_ddc
++      - uhd_rfnoc_duc
++      - uhd_rfnoc_fft
++      - uhd_rfnoc_rx_radio
++      - uhd_rfnoc_tx_radio
++      - uhd_rfnoc_rx_streamer
++      - uhd_rfnoc_tx_streamer
++  - RFNoC Image Builder:
++    - Blocks:
++      - uhd_fpga_ddc
++      - uhd_fpga_duc
++      - uhd_fpga_fft
++      - uhd_fpga_null_src_sink
++    - Core:
++      - uhd_fpga_sep
++      - uhd_fpga_radio
++      - uhd_fpga_x310
++      - uhd_fpga_ctrl_xbar
++      - uhd_fpga_chdr_xbar
+diff --git a/gr-uhd/grc/uhd_fpga_clk.domain.yml b/gr-uhd/grc/uhd_fpga_clk.domain.yml
+new file mode 100644
+index 000000000..e459ed2d0
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_clk.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.clk
++label: Clock
++color: "#72706F"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.clk, rfnoc.clk]
+diff --git a/gr-uhd/grc/uhd_fpga_ctrl.domain.yml b/gr-uhd/grc/uhd_fpga_ctrl.domain.yml
+new file mode 100644
+index 000000000..64f2b7684
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_ctrl.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.ctrl
++label: Control
++color: "#F50057"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.ctrl, rfnoc.ctrl]
+diff --git a/gr-uhd/grc/uhd_fpga_data.domain.yml b/gr-uhd/grc/uhd_fpga_data.domain.yml
+new file mode 100644
+index 000000000..35ff4fd90
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_data.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.data
++label: Data
++color: "#2196F3"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.data, rfnoc.data]
+diff --git a/gr-uhd/grc/uhd_fpga_ddc.block.yml b/gr-uhd/grc/uhd_fpga_ddc.block.yml
+new file mode 100644
+index 000000000..f06d6bd29
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_ddc.block.yml
+@@ -0,0 +1,38 @@
++id: uhd_fpga_ddc
++label: DDC
++
++parameters:
++-   id: type
++    label: RFNoC Block Type
++    dtype: enum
++    default: 'block'
++    options: ['block', 'sep', 'device']
++    hide: all
++-   id: desc
++    label: Block Descriptor
++    dtype: string
++    default: 'ddc_2x64.yml'
++    hide: all
++-   id: nports
++    label: Number of Ports
++    dtype: int
++    default: '1'
++    hide: part
++
++
++inputs:
++-   domain: rfnoc.clk
++    id: ddc
++    dtype: message
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++outputs:
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_fpga_duc.block.yml b/gr-uhd/grc/uhd_fpga_duc.block.yml
+new file mode 100644
+index 000000000..eabd98439
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_duc.block.yml
+@@ -0,0 +1,37 @@
++id: uhd_fpga_duc
++label: DUC
++
++parameters:
++-   id: type
++    label: RFNoC Block Type
++    dtype: enum
++    default: 'block'
++    options: ['block', 'sep', 'device']
++    hide: all
++-   id: desc
++    label: Block Descriptor
++    dtype: string
++    default: 'duc_2x64.yml'
++    hide: all
++-   id: nports
++    label: Number of Ports
++    dtype: int
++    default: '2'
++    hide: part
++
++inputs:
++-   domain: rfnoc.clk
++    id: duc
++    dtype: message
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++outputs:
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_fpga_fft.block.yml b/gr-uhd/grc/uhd_fpga_fft.block.yml
+new file mode 100644
+index 000000000..231a3dbf6
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_fft.block.yml
+@@ -0,0 +1,12 @@
++id: uhd_fpga_fft
++label: FFT
++
++inputs:
++-   domain: stream
++    id: port0
++
++outputs:
++-   domain: stream
++    id: port0
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_fpga_io_ctrl_port.domain.yml b/gr-uhd/grc/uhd_fpga_io_ctrl_port.domain.yml
+new file mode 100644
+index 000000000..b0613c5f3
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_io_ctrl_port.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.io.ctrl_port
++label: Control Port
++color: "#00BCD4"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.io.ctrl_port, rfnoc.io.ctrl_port]
+diff --git a/gr-uhd/grc/uhd_fpga_io_radio.domain.yml b/gr-uhd/grc/uhd_fpga_io_radio.domain.yml
+new file mode 100644
+index 000000000..a186c9ad5
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_io_radio.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.io.radio
++label: Radio
++color: "#4CAF50"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.io.radio, rfnoc.io.radio]
+diff --git a/gr-uhd/grc/uhd_fpga_io_time_keeper.domain.yml b/gr-uhd/grc/uhd_fpga_io_time_keeper.domain.yml
+new file mode 100644
+index 000000000..0f983b632
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_io_time_keeper.domain.yml
+@@ -0,0 +1,9 @@
++id: rfnoc.io.time_keeper
++label: Time Keeper
++color: "#F57C00"
++
++multiple_connections_per_input: false
++multiple_connections_per_output: true
++
++templates:
++-   type: [rfnoc.io.time_keeper, rfnoc.io.time_keeper]
+diff --git a/gr-uhd/grc/uhd_fpga_radio.block.yml b/gr-uhd/grc/uhd_fpga_radio.block.yml
+new file mode 100644
+index 000000000..a2ea1035f
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_radio.block.yml
+@@ -0,0 +1,47 @@
++id: uhd_fpga_radio
++label: Radio
++
++parameters:
++-   id: type
++    label: RFNoC Block Type
++    dtype: enum
++    default: 'block'
++    options: ['block', 'sep', 'device']
++    hide: all
++-   id: desc
++    label: Block Descriptor
++    dtype: string
++    default: 'radio_2x64.yml'
++    hide: all
++-   id: nports
++    label: Number of Ports
++    dtype: int
++    default: '2'
++    hide: part
++
++inputs:
++-   domain: rfnoc.clk
++    id: radio
++    dtype: message
++-   domain: rfnoc.io.time_keeper
++    id: time_keeper
++    dtype: f32
++-   domain: rfnoc.io.radio
++    id: x300_radio
++    dtype: sc32
++
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++outputs:
++-   domain: rfnoc.io.ctrl_port
++    id: ctrl_port
++    dtype: f64
++-   domain: rfnoc.data
++    id: port
++    dtype: fc32
++    multiplicity: ${ nports }
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_fpga_sep.block.yml b/gr-uhd/grc/uhd_fpga_sep.block.yml
+new file mode 100644
+index 000000000..7e0100c9b
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_sep.block.yml
+@@ -0,0 +1,45 @@
++id: uhd_fpga_sep
++label: Stream Endpoint
++flags: [ python ]
++
++parameters:
++-   id: type
++    label: RFNoC Block Type
++    dtype: enum
++    default: 'sep'
++    options: ['block', 'sep', 'device']
++    hide: all
++-   id: ctrl
++    label: Pass Control Traffic
++    dtype: enum
++    default: 'True'
++    options: ['True', 'False']
++    option_labels: ['Yes', 'No']
++    hide: part
++-   id: data
++    label: Pass Data Traffic
++    dtype: enum
++    default: 'True'
++    options: ['True', 'False']
++    option_labels: ['Yes', 'No']
++    hide: part
++-   id: buff_size
++    label: Buffer Size
++    dtype: int
++    default: '32768'
++    hide: part
++
++
++inputs:
++-   domain: rfnoc.data
++    id: in0
++    dtype: fc32
++    multiplicity: ${ nports }
++
++outputs:
++-   domain: rfnoc.data
++    id: out0
++    dtype: fc32
++    multiplicity: ${ nports }
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_fpga_x310.block.yml b/gr-uhd/grc/uhd_fpga_x310.block.yml
+new file mode 100644
+index 000000000..26b07fae8
+--- /dev/null
++++ b/gr-uhd/grc/uhd_fpga_x310.block.yml
+@@ -0,0 +1,38 @@
++id: uhd_fpga_x310 
++label: X310 Device
++
++parameters:
++-   id: type
++    label: RFNoC Block Type
++    dtype: enum
++    default: 'device'
++    options: ['block', 'sep', 'device']
++    hide: all
++
++inputs:
++-   domain: rfnoc.io.ctrl_port
++    id: ctrlport_radio0
++    dtype: f64
++-   domain: rfnoc.io.ctrl_port
++    id: ctrlport_radio1
++    dtype: f64
++
++outputs:
++-   domain: rfnoc.clk
++    id: radio
++    dtype: message
++-   domain: rfnoc.clk
++    id: ce
++    dtype: message
++
++-   domain: rfnoc.io.time_keeper
++    id: time_keeper
++    dtype: f32
++-   domain: rfnoc.io.radio
++    id: x300_radio0
++    dtype: sc32
++-   domain: rfnoc.io.radio
++    id: x300_radio1
++    dtype: sc32
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_ddc.block.yml b/gr-uhd/grc/uhd_rfnoc_ddc.block.yml
+new file mode 100644
+index 000000000..86925f476
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_ddc.block.yml
+@@ -0,0 +1,57 @@
++id: uhd_rfnoc_ddc
++label: RFNoC Digital Downconverter Block
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_ddc(
++        self.rfnoc_graph,
++        uhd.device_addr(${block_args}),
++        ${device_select},
++        ${instance_index})
++    self.${id}.set_freq(${freq}, 0)
++    self.${id}.set_output_rate(${output_rate}, 0)
++  callbacks:
++  - set_freq(${freq}, 0)
++  - set_output_rate(${output_rate}, 0)
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++- id: block_args
++  label: Block Args
++  dtype: string
++  default: ""
++- id: device_select
++  label: Device Select
++  dtype: int
++  default: -1
++- id: instance_index
++  label: Instance Select
++  dtype: int
++  default: -1
++- id: freq
++  label: Frequency Shift (Hz)
++  dtype: real
++  default: 0
++- id: output_rate
++  label: Output Rate (Hz)
++  dtype: real
++  default: 0
++
++inputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++outputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_duc.block.yml b/gr-uhd/grc/uhd_rfnoc_duc.block.yml
+new file mode 100644
+index 000000000..6adc89cc7
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_duc.block.yml
+@@ -0,0 +1,56 @@
++id: uhd_rfnoc_duc
++label: RFNoC Digital Upconverter Block
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_duc(
++        self.rfnoc_graph,
++        ${num_chans},
++        uhd.device_addr(${block_args}),
++        ${device_select},
++        ${instance_index})
++    self.${id}.set_freq(${freq}, 0)
++    self.${id}.set_input_rate(${input_rate}, 0)
++  callbacks:
++  - set_freq(${freq}, 0)
++  - set_input_rate(${input_rate}, 0)
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++- id: block_args
++  label: Block Args
++  dtype: string
++  default: ""
++- id: device_select
++  label: Device Select
++  dtype: int
++  default: -1
++- id: instance_index
++  label: Instance Select
++  dtype: int
++  default: -1
++- id: freq
++  label: Frequency Shift (Hz)
++  dtype: real
++- id: input_rate
++  label: Input Rate (Hz)
++  dtype: real
++
++inputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++outputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_fft.block.yml b/gr-uhd/grc/uhd_rfnoc_fft.block.yml
+new file mode 100644
+index 000000000..28f88f20e
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_fft.block.yml
+@@ -0,0 +1,45 @@
++id: uhd_rfnoc_fft
++label: RFNoC Fast Fourier Transform Block
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_block_generic(
++        self.rfnoc_graph,
++        uhd.device_addr(${block_args}),
++        "FFT",
++        ${device_select},
++        ${instance_index})
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++- id: block_args
++  label: Block Args
++  dtype: string
++  default: ""
++- id: device_select
++  label: Device Select
++  dtype: int
++  default: -1
++- id: instance_index
++  label: Instance Select
++  dtype: int
++  default: -1
++
++inputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++outputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_graph.block.yml b/gr-uhd/grc/uhd_rfnoc_graph.block.yml
+new file mode 100644
+index 000000000..43b1bce49
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_graph.block.yml
+@@ -0,0 +1,127 @@
++id: uhd_rfnoc_graph
++label: RFNoC Graph (Device)
++flags: [ show_id, python ]
++
++templates:
++  imports: |-
++      from gnuradio import uhd
++  var_make: |
++      self.rfnoc_graph = ${id} = uhd.rfnoc_graph(uhd.device_addr(",".join((${dev_addr}, ${dev_args}))))
++
++value: ${ 'RFNoC Graph' }
++
++parameters:
++- id: dev_addr
++  label: Device Address
++  dtype: string
++  default: ""
++  hide: ${ 'none' if dev_addr else 'part' }
++- id: dev_args
++  label: Device Args
++  dtype: string
++  default: ""
++  hide: ${ 'none' if dev_args else 'part' }
++- id: num_mboards
++  label: Num Mboards
++  dtype: int
++  default: 1
++  options: [1, 2, 3, 4, 5, 6, 7, 8]
++  hide: part
++- id: clock_source_0
++  label: 'Mb0: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 0) else ( 'none' if clock_source_0 else 'part')}
++- id: time_source_0
++  label: 'Mb0: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 0) else ('none' if time_source_0 else 'part')}
++- id: clock_source_1
++  label: 'Mb1: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 1) else ( 'none' if clock_source_1 else 'part')}
++- id: time_source_1
++  label: 'Mb1: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 1) else ('none' if time_source_1 else 'part')}
++- id: clock_source_2
++  label: 'Mb2: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 2) else ( 'none' if clock_source_2 else 'part')}
++- id: time_source_2
++  label: 'Mb2: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 2) else ('none' if time_source_2 else 'part')}
++- id: clock_source_3
++  label: 'Mb3: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 3) else ( 'none' if clock_source_3 else 'part')}
++- id: time_source_3
++  label: 'Mb3: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 3) else ('none' if time_source_3 else 'part')}
++- id: clock_source_4
++  label: 'Mb4: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 4) else ( 'none' if clock_source_4 else 'part')}
++- id: time_source_4
++  label: 'Mb4: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 4) else ('none' if time_source_4 else 'part')}
++- id: clock_source_5
++  label: 'Mb5: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 5) else ( 'none' if clock_source_5 else 'part')}
++- id: time_source_5
++  label: 'Mb5: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 5) else ('none' if time_source_5 else 'part')}
++- id: clock_source_6
++  label: 'Mb6: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 6) else ( 'none' if clock_source_6 else 'part')}
++- id: time_source_6
++  label: 'Mb6: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 6) else ('none' if time_source_6 else 'part')}
++- id: clock_source_7
++  label: 'Mb7: Clock Source'
++  dtype: string
++  options: ['', internal, external, mimo, gpsdo]
++  option_labels: [Default, Internal, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 7) else ( 'none' if clock_source_7 else 'part')}
++- id: time_source_7
++  label: 'Mb7: Time Source'
++  dtype: string
++  options: ['', external, mimo, gpsdo]
++  option_labels: [Default, External, MIMO Cable, O/B GPSDO]
++  hide: ${ 'all' if not (num_mboards > 7) else ('none' if time_source_7 else 'part')}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_rx_radio.block.yml b/gr-uhd/grc/uhd_rfnoc_rx_radio.block.yml
+new file mode 100644
+index 000000000..653249bef
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_rx_radio.block.yml
+@@ -0,0 +1,91 @@
++id: uhd_rfnoc_rx_radio
++label: RFNoC RX Radio
++flags: [python, throttle]
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_rx_radio(
++        self.rfnoc_graph,
++        uhd.device_addr(${block_args}),
++        ${device_select},
++        ${instance_index})
++    self.${id}.set_rate(${rate})
++    self.${id}.set_antenna(${antenna}, 0)
++    self.${id}.set_frequency(${frequency}, 0)
++    self.${id}.set_gain(${gain}, 0)
++    self.${id}.set_bandwidth(${bandwidth}, 0)
++    self.${id}.set_dc_offset(${dc_offset}, 0)
++    self.${id}.set_iq_balance(${iq_balance}, 0)
++  callbacks:
++  - set_rate(${rate})
++  - set_antenna(${antenna}, 0)
++  - set_frequency(${frequency}, 0)
++  - set_gain(${gain}, 0)
++  - set_bandwidth(${bandwidth}, 0)
++  - set_dc_offset(${dc_offset}, 0)
++  - set_iq_balance(${iq_balance}, 0)
++
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++- id: block_args
++  label: Block Args
++  dtype: string
++  default: ""
++- id: device_select
++  label: Device Select
++  dtype: int
++  default: -1
++- id: instance_index
++  label: Instance Select
++  dtype: int
++  default: -1
++- id: rate
++  label: Sample Rate (Hz)
++  dtype: real
++- id: antenna
++  label: Antenna Select
++  dtype: string
++  options: [TX/RX, RX2, RX1]
++  option_labels: [TX/RX, RX2, RX1]
++  default: RX2
++- id: frequency
++  label: Center Frequency (Hz)
++  dtype: real
++- id: gain
++  label: Gain
++  dtype: real
++- id: agc
++  label: Automatic Gain Control
++  dtype: string
++  default: 'Default'
++  options: ['Default', 'Disabled', 'Enabled']
++  option_labels: [Default, Disabled, Enabled]
++- id: bandwidth
++  label: Bandwidth (Hz)
++  dtype: real
++  default: 0
++- id: dc_offset
++  label: DC Offset Correction
++  dtype: bool
++  options: ['True', 'False']
++  default: 'False'
++- id: iq_balance
++  label: IQ Balance
++  dtype: bool
++  options: ['True', 'False']
++  default: 'False'
++
++
++outputs:
++- domain: rfnoc
++  dtype: sc16
++  vlen: 1
++  multiplicity: ${num_chans}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_rx_streamer.block.yml b/gr-uhd/grc/uhd_rfnoc_rx_streamer.block.yml
+new file mode 100644
+index 000000000..e0489eff8
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_rx_streamer.block.yml
+@@ -0,0 +1,57 @@
++id: uhd_rfnoc_rx_streamer
++label: RFNoC Rx Streamer
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_rx_streamer(
++        self.rfnoc_graph,
++        ${ num_chans },
++        uhd.stream_args(
++            cpu_format="${ output_type.type }",
++            otw_format="${ otw.type }",
++            channels=[],
++            args="",
++        ),
++        1,
++        True
++    )
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++  hide: part
++- id: otw
++  label: Wire Format
++  dtype: enum
++  options: ['', sc16]
++  option_labels: [Automatic, Complex int16]
++  option_attributes:
++    type: ['', sc16]
++  hide: part
++- id: output_type
++  label: Output Type
++  dtype: enum
++  options: [fc32, sc16]
++  option_labels: [Complex float32, Complex int16]
++  option_attributes:
++    type: [fc32, sc16]
++  hide: part
++
++asserts:
++  - ${ num_chans > 0 }
++
++inputs:
++- domain: rfnoc
++  dtype: ${ otw.type }
++  multiplicity: ${ num_chans }
++
++outputs:
++- domain: stream
++  dtype: ${ output_type.type }
++  multiplicity: ${ num_chans }
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_tx_radio.block.yml b/gr-uhd/grc/uhd_rfnoc_tx_radio.block.yml
+new file mode 100644
+index 000000000..93392cb7f
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_tx_radio.block.yml
+@@ -0,0 +1,77 @@
++id: uhd_rfnoc_tx_radio
++label: RFNoC TX Radio
++flags: [python, throttle]
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_tx_radio(
++        self.rfnoc_graph,
++        uhd.device_addr(${block_args}),
++        ${device_select},
++        ${instance_index})
++    self.${id}.set_rate(${rate})
++    self.${id}.set_antenna(${antenna}, 0)
++    self.${id}.set_frequency(${frequency}, 0)
++    self.${id}.set_gain(${gain}, 0)
++    self.${id}.set_bandwidth(${bandwidth}, 0)
++  callbacks:
++  - set_rate(${rate})
++  - set_antenna(${antenna}, 0)
++  - set_frequency(${frequency}, 0)
++  - set_gain(${gain}, 0)
++  - set_bandwidth(${bandwidth}, 0)
++
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++- id: block_args
++  label: Block Args
++  dtype: string
++  default: ""
++- id: device_select
++  label: Device Select
++  dtype: int
++  default: -1
++- id: instance_index
++  label: Instance Select
++  dtype: int
++  default: -1
++- id: rate
++  label: Sample Rate (Hz)
++  dtype: real
++- id: antenna
++  label: Antenna Select
++  dtype: string
++  options: [TX/RX, RX2, RX1]
++  option_labels: [TX/RX, RX2, RX1]
++  default: TX/RX
++- id: frequency
++  label: Center Frequency (Hz)
++  dtype: real
++- id: gain
++  label: Gain
++  dtype: real
++- id: agc
++  label: Automatic Gain Control
++  dtype: string
++  default: 'Default'
++  options: ['Default', 'Enabled', 'Disabled']
++  option_labels: [Default, Disabled, Enabled]
++- id: bandwidth
++  label: Bandwidth (Hz)
++  dtype: real
++  default: 0
++
++
++inputs:
++- domain: rfnoc
++  dtype: 'sc16'
++  vlen: 1
++  multiplicity: ${num_chans}
++
++file_format: 1
+diff --git a/gr-uhd/grc/uhd_rfnoc_tx_streamer.block.yml b/gr-uhd/grc/uhd_rfnoc_tx_streamer.block.yml
+new file mode 100644
+index 000000000..881ae21df
+--- /dev/null
++++ b/gr-uhd/grc/uhd_rfnoc_tx_streamer.block.yml
+@@ -0,0 +1,53 @@
++id: uhd_rfnoc_tx_streamer
++label: RFNoC Tx Streamer
++
++templates:
++  imports: |-
++    from gnuradio import uhd
++  make: |-
++    uhd.rfnoc_tx_streamer(
++        self.rfnoc_graph,
++        ${ num_chans },
++        uhd.stream_args(
++            cpu_format="${ input_type.type }",
++            otw_format="${ otw.type }",
++            channels=[],
++            args="",
++        ),
++        1
++    )
++
++parameters:
++- id: num_chans
++  label: Number of Channels
++  dtype: int
++  default: 1
++  hide: part
++- id: input_type
++  label: Input Type
++  dtype: enum
++  options: [fc32, sc16]
++  option_labels: [Complex float32, Complex int16]
++  option_attributes:
++    type: [fc32, sc16]
++  hide: part
++- id: otw
++  label: Wire Format
++  dtype: enum
++  options: ['', sc16]
++  option_labels: [Automatic, Complex int16]
++  option_attributes:
++    type: ['', sc16]
++  hide: part
++
++inputs:
++- domain: stream
++  dtype: ${ input_type.type }
++  multiplicity: ${ num_chans }
++
++outputs:
++- domain: rfnoc
++  dtype: ${ otw.type }
++  multiplicity: ${ num_chans }
++
++file_format: 1
+diff --git a/gr-uhd/include/gnuradio/uhd/CMakeLists.txt b/gr-uhd/include/gnuradio/uhd/CMakeLists.txt
+index e75369b1e..ffe1f6404 100644
+--- a/gr-uhd/include/gnuradio/uhd/CMakeLists.txt
++++ b/gr-uhd/include/gnuradio/uhd/CMakeLists.txt
+@@ -9,10 +9,24 @@
+ # Install header files
+ ########################################################################
+ install(FILES
++    amsg_source.h
+     api.h
+     usrp_block.h
+-    usrp_source.h
+     usrp_sink.h
+-    amsg_source.h
++    usrp_source.h
+     DESTINATION ${GR_INCLUDE_DIR}/gnuradio/uhd
+ )
++
++if (ENABLE_UHD_RFNOC)
++    install(FILES
++        rfnoc_block_generic.h
++        rfnoc_ddc.h
++        rfnoc_duc.h
++        rfnoc_graph.h
++        rfnoc_rx_radio.h
++        rfnoc_rx_streamer.h
++        rfnoc_tx_radio.h
++        rfnoc_tx_streamer.h
++        DESTINATION ${GR_INCLUDE_DIR}/gnuradio/uhd
++    )
++endif (ENABLE_UHD_RFNOC)
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_block.h b/gr-uhd/include/gnuradio/uhd/rfnoc_block.h
+new file mode 100644
+index 000000000..a25a50254
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_block.h
+@@ -0,0 +1,89 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_UHD_RFNOC_BLOCK_H
++#define INCLUDED_UHD_RFNOC_BLOCK_H
++
++#include <gnuradio/block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++#include <uhd/rfnoc/noc_block_base.hpp>
++#include <string>
++
++namespace gr {
++namespace uhd {
++
++/*! Base class for RFNoC blocks controlled by GNU Radio
++ *
++ * Any GNU Radio block that is meant to control an RFNoC block
++ * should be derived from this class.
++ */
++class UHD_API rfnoc_block : public gr::block
++{
++protected:
++    // \param block_ref A reference to the underlying block controller
++    rfnoc_block(::uhd::rfnoc::noc_block_base::sptr block_ref);
++
++    rfnoc_block() {} // For virtual subclassing
++
++public:
++    using sptr = boost::shared_ptr<rfnoc_block>;
++
++    //! Factory function to create a UHD block controller reference
++    //
++    // \param graph Refernce to the flowgraph's RFNoC graph
++    // \param block_args Block args
++    // \param block_name Block name (e.g. "DDC")
++    // \param device_select Device index (motherboard index)
++    // \param block_select Block index
++    // \param max_ref_count Maximum number of references this block can have in
++    //                      the GNU Radio flow graph
++    static ::uhd::rfnoc::noc_block_base::sptr
++    make_block_ref(rfnoc_graph::sptr graph,
++                   const ::uhd::device_addr_t& block_args,
++                   const std::string& block_name,
++                   const int device_select = -1,
++                   const int block_select = -1,
++                   const size_t max_ref_count = 1);
++
++    //! Return a type-cast block reference, or throw if the cast failed.
++    //
++    // \throws std::runtime_error if there is no valid block reference
++    template <typename block_type>
++    std::shared_ptr<block_type> get_block_ref()
++    {
++        auto cast_block_ref = std::dynamic_pointer_cast<block_type>(d_block_ref);
++        if (!cast_block_ref) {
++            throw std::runtime_error(
++                std::string(
++                    "Unable to cast the following block into its desired type: ") +
++                d_block_ref->get_unique_id());
++        }
++        return cast_block_ref;
++    }
++
++    /*! Return the unique ID of the underlying block
++     */
++    std::string get_unique_id() const;
++
++    // GNU Radio-specific overrides
++
++    //! This method should never be called by RFNoC blocks, they do the work
++    // in the FPGA.
++    int general_work(int noutput_items,
++                     gr_vector_int& ninput_items,
++                     gr_vector_const_void_star& input_items,
++                     gr_vector_void_star& output_items);
++
++private:
++    //! Reference to the underlying RFNoC block
++    ::uhd::rfnoc::noc_block_base::sptr d_block_ref;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_UHD_RFNOC_BLOCK_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_block_generic.h b/gr-uhd/include/gnuradio/uhd/rfnoc_block_generic.h
+new file mode 100644
+index 000000000..9cf7f91de
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_block_generic.h
+@@ -0,0 +1,50 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_H
++#define INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_H
++
++#include <gnuradio/block.h>
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++
++namespace gr {
++namespace uhd {
++
++/*! Generic RFNoC block holder
++ *
++ * This block can represent any RFNoC block
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_block_generic : virtual public rfnoc_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_block_generic> sptr;
++
++    /*!
++     * \param graph Reference to the underlying rfnoc_graph object
++     * \param block_args Arguments that get passed into the block
++     * \param block_name Block name. This argument, along with \p device_select
++     *                   and \p block_select, are used to identify which block
++     *                   is instantiated.
++     * \param device_select Optional: Device count.
++     * \param block_select Optional: Block select.
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const ::uhd::device_addr_t& block_args,
++                     const std::string& block_name,
++                     const int device_select = -1,
++                     const int block_select = -1);
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_ddc.h b/gr-uhd/include/gnuradio/uhd/rfnoc_ddc.h
+new file mode 100644
+index 000000000..9b3a0d4c1
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_ddc.h
+@@ -0,0 +1,62 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_DDC_H
++#define INCLUDED_GR_UHD_RFNOC_DDC_H
++
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_block.h>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC Digital Downconverter Block
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_ddc : virtual public rfnoc_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_ddc> sptr;
++
++    /*!
++     * \param graph Reference to the rfnoc_graph object this block is attached to
++     * \param block_args Additional block arguments
++     * \param device_select Device Selection
++     * \param instance Instance Selection
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const ::uhd::device_addr_t& block_args,
++                     const int device_select,
++                     const int instance);
++
++    /*! Set the DDS frequency of the DDC
++     *
++     * \param freq Frequency Shift (Hz)
++     * \param chan Channel Index
++     * \param time Command Time for the frequency shift
++     */
++    virtual double set_freq(const double freq,
++                            const size_t chan,
++                            const ::uhd::time_spec_t time = ::uhd::time_spec_t::ASAP) = 0;
++
++    /*! Manually configure output rate
++     *
++     * When the DDC block is connected to an RX streamer block, then this will
++     * help with the property propagation.
++     *
++     * \param rate Sampling Rate (Hz)
++     * \param chan Channel Index
++     */
++    virtual double set_output_rate(const double rate, const size_t chan) = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_DDC_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_duc.h b/gr-uhd/include/gnuradio/uhd/rfnoc_duc.h
+new file mode 100644
+index 000000000..f6b122706
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_duc.h
+@@ -0,0 +1,59 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_DUC_H
++#define INCLUDED_GR_UHD_RFNOC_DUC_H
++
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC Digital Upconverter Block
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_duc : virtual public rfnoc_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_duc> sptr;
++
++    /*!
++     * \param graph Reference to the rfnoc_graph object this block is attached to
++     * \param block_args Additional block arguments
++     * \param device_select Device Selection
++     * \param instance Instance Selection
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const ::uhd::device_addr_t& block_args,
++                     const int device_select,
++                     const int instance);
++
++    /*! Set DDS frequency
++     */
++    virtual double set_freq(const double freq,
++                            const size_t chan,
++                            const ::uhd::time_spec_t time = ::uhd::time_spec_t::ASAP) = 0;
++
++    /*! Set the sample rate at the input
++     *
++     * When the DUC block is connected to a TX streamer block, then this will
++     * help with the property propagation.
++     *
++     * \param rate Input Sampling Rate (Hz)
++     * \param chan Channel Index
++     */
++    virtual double set_input_rate(const double rate, const size_t chan) = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_DUC_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_graph.h b/gr-uhd/include/gnuradio/uhd/rfnoc_graph.h
+new file mode 100644
+index 000000000..efa0e14c3
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_graph.h
+@@ -0,0 +1,135 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_GRAPH_H
++#define INCLUDED_GR_UHD_RFNOC_GRAPH_H
++
++#include <gnuradio/uhd/api.h>
++#include <uhd/rfnoc/noc_block_base.hpp>
++#include <uhd/stream.hpp>
++#include <uhd/types/device_addr.hpp>
++#include <boost/shared_ptr.hpp>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_block;
++
++/*! GNU Radio-specific wrapper for uhd::rfnoc::rfnoc_graph
++ *
++ * This wraps uhd::rfnoc::rfnoc_graph for simpler insertion into GNU Radio flow
++ * graphs. All API calls match those on said class.
++ */
++class GR_UHD_API rfnoc_graph
++{
++public:
++    using sptr = boost::shared_ptr<rfnoc_graph>;
++
++    static sptr make(const ::uhd::device_addr_t& dev_addr);
++
++    virtual ~rfnoc_graph() {}
++
++    //! Connect two blocks, or a block to a streamer, or a streamer to a block
++    //
++    // \param src_block The block ID of the source block (e.g., "0/Radio#0)
++    // \param src_block_port The port on the source block to connect to
++    // \param dst_block The block ID of the destination block (e.g., "0/DDC#0)
++    // \param dst_block_port The port on the destination block to connect to
++    // \param skip_property_propagation Disable property propagation on this
++    //                                  connection (see the UHD documentation)
++    virtual void connect(const std::string& src_block,
++                         const size_t src_block_port,
++                         const std::string& dst_block,
++                         const size_t dst_block_port,
++                         const bool skip_property_propagation = false) = 0;
++
++    //! Convenience overload: Defaults to port 0 on both blocks
++    //
++    // \param src_block The block ID of the source block (e.g., "0/Radio#0)
++    // \param dst_block The block ID of the destination block (e.g., "0/DDC#0)
++    // \param skip_property_propagation Disable property propagation on this
++    //                                  connection (see the UHD documentation)
++    virtual void connect(const std::string& src_block,
++                         const std::string& dst_block,
++                         const bool skip_property_propagation = false) = 0;
++
++    //! Create an RX streamer
++    //
++    // Note: This streamer is not connected to anything after creation.
++    //
++    // See also the UHD documentation for uhd::rfnoc::rfnoc_graph::create_rx_streamer().
++    //
++    // \param num_ports Number of streaming ports
++    // \param args Stream args.
++    virtual ::uhd::rx_streamer::sptr
++    create_rx_streamer(const size_t num_ports, const ::uhd::stream_args_t& args) = 0;
++
++    //! Create a TX streamer
++    //
++    // Note: This streamer is not connected to anything after creation.
++    //
++    // See also the UHD documentation for uhd::rfnoc::rfnoc_graph::create_tx_streamer().
++    //
++    // \param num_ports Number of streaming ports
++    // \param args Stream args.
++    virtual ::uhd::tx_streamer::sptr
++    create_tx_streamer(const size_t num_ports, const ::uhd::stream_args_t& args) = 0;
++
++    //! Commit the graph and run initial checks
++    //
++    // See ::uhd::rfnoc::rfnoc_graph::commit() for more documentation.
++    virtual void commit() = 0;
++
++    /*! Return a valid block ID string, if it exists, or an empty string, if not
++     *
++     * This will check the available blocks on the connected devices and see if
++     * they match the block name, device ID, and block number.
++     */
++    virtual std::string get_block_id(const std::string& block_name,
++                                     const int device_select,
++                                     const int block_select) = 0;
++
++    //! Set time source on the specified motherboard
++    //
++    // Note: This is a convenience call, it directly dereferences the underlying
++    // motherboard controller.
++    //
++    // \param source Time source (e.g., "internal")
++    // \param mb_index Motherboard index, starting at 0
++    virtual void set_time_source(const std::string& source, const size_t mb_index) = 0;
++
++    //! Set clock source on the specified motherboard
++    //
++    // Note: This is a convenience call, it directly dereferences the underlying
++    // motherboard controller.
++    //
++    // \param source Clock source (e.g., "internal")
++    // \param mb_index Motherboard index, starting at 0
++    virtual void set_clock_source(const std::string& source, const size_t mb_index) = 0;
++
++    //! Return a reference to the block with a given block ID
++    //
++    // This allows to retrieve a shared pointer to a block controller with a
++    // limit. It keeps track of the references given out, and will throw an
++    // exception if called more than max_ref_count times. This is to help ensure
++    // that GNU Radio blocks don't share block controllers unintentionally.
++    //
++    // \param block_id A valid block ID. Use get_block_id() to make sure it is
++    //                 valid.
++    // \param max_ref_count The maximum number of references that are doled out.
++    //
++    // \throws std::runtime_error if more than \p max_ref_count references are
++    //                            given out
++    virtual ::uhd::rfnoc::noc_block_base::sptr
++    get_block_ref(const std::string& block_id, const size_t max_ref_count) = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_GRAPH_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_rx_radio.h b/gr-uhd/include/gnuradio/uhd/rfnoc_rx_radio.h
+new file mode 100644
+index 000000000..6a8e43ad1
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_rx_radio.h
+@@ -0,0 +1,168 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_RX_RADIO_H
++#define INCLUDED_GR_UHD_RFNOC_RX_RADIO_H
++
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC RX Radio
++ *
++ * This wraps a radio block into GNU Radio. Note: When doing TX and RX in the
++ * same flow graph, simply crate an rfnoc_rx_radio and an rfnoc_tx_radio with
++ * the same block ID.
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_rx_radio : virtual public rfnoc_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_rx_radio> sptr;
++
++    /*!
++     * \param graph Reference to the underlying rfnoc_graph object
++     * \param block_args Additional block arguments
++     * \param device_select Device Selection
++     * \param instance Instance Selection
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const ::uhd::device_addr_t& block_args,
++                     const int device_select,
++                     const int instance);
++
++    //! Set the output sampling rate of the radio block
++    //
++    // Note: The actual rate of the radio will be coerced to whatever it is
++    // capable of.
++    //
++    // \param rate The new sampling rate
++    virtual double set_rate(const double rate) = 0;
++
++    //! Set the antenna for this radio
++    //
++    // \param antenna The antenna name (e.g., "RX2"). Valid name depend on the
++    //                underlying hardware.
++    // \param chan The channel for which this antenna setting is for
++    virtual void set_antenna(const std::string& antenna, const size_t chan) = 0;
++
++    //! Set the RX frequency for this radio
++    //
++    // \param frequency The received frequency (e.g., 1e9)
++    // \param chan The channel for which this frequency setting is for
++    virtual double set_frequency(const double frequency, const size_t chan) = 0;
++
++    //! Configure the tune args for this RX radio
++    //
++    // \param args The new args (e.g., "mode_n=1")
++    // \param chan The channel for which this setting is for
++    virtual void set_tune_args(const ::uhd::device_addr_t& args, const size_t chan) = 0;
++
++    //! Configure the overall gain for this RX radio
++    //
++    // \param gain The new gain value (in dB)
++    // \param chan The channel for which this setting is for
++    virtual double set_gain(const double gain, const size_t chan) = 0;
++
++    //! Configure a specific gain for this RX radio
++    //
++    // \param gain The new gain value (in dB)
++    // \param name The gain stage name to set
++    // \param chan The channel for which this setting is for
++    virtual double
++    set_gain(const double gain, const std::string& name, const size_t chan) = 0;
++
++    //! Enable/disable the AGC for this RX radio (if available)
++    //
++    // \param enable The new setting for the AGC (on or off)
++    // \param chan The channel for which this setting is for
++    virtual void set_agc(const bool enable, const size_t chan) = 0;
++
++    //! Switch the gain profile for this RX radio
++    //
++    // \param profile The name of the gain profile (e.g., "low-noise")
++    // \param chan The channel for which this setting is for
++    virtual void set_gain_profile(const std::string& profile, const size_t chan) = 0;
++
++    //! Set the analog bandwidth for this RX radio
++    //
++    // \param bandwidth The new bandwidth, in Hz
++    // \param chan The channel for which this setting is for
++    virtual double set_bandwidth(const double bandwidth, const size_t chan) = 0;
++
++    //! Set the LO source for this RX radio
++    //
++    // Note: Available sources depend on the underlying hardware.
++    //
++    // \param source The new LO source (e.g., "internal")
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual void set_lo_source(const std::string& source,
++                               const std::string& name,
++                               const size_t chan) = 0;
++
++    //! Enable/disable LO export for this RX radio
++    //
++    // \param enabled When true, export this LO
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual void set_lo_export_enabled(const bool enabled,
++                                       const std::string& name,
++                                       const size_t chan) = 0;
++
++    //! Configure the LO frequency explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_rx_lo_freq() for more details.
++    // \param freq The new LO frequency
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual double
++    set_lo_freq(const double freq, const std::string& name, const size_t chan) = 0;
++
++    //! Enable/disable DC offset tracking
++    //
++    // Consult uhd::rfnoc::radio_control::set_rx_dc_offset() for more details.
++    //
++    // \param enable When true, export this LO
++    // \param chan The channel for which this setting is for
++    virtual void set_dc_offset(const bool enable, const size_t chan) = 0;
++
++    //! Set the DC offset value explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_rx_dc_offset() for more details.
++    //
++    // \param offset The DC offset value that gets used for compensation
++    // \param chan The channel for which this setting is for
++    virtual void set_dc_offset(const std::complex<double>& offset, const size_t chan) = 0;
++
++    //! Enable/disable IQ imbalance tracking
++    //
++    // Consult uhd::rfnoc::radio_control::set_rx_iq_balance() for more details.
++    //
++    // \param enable When true, export this LO
++    // \param chan The channel for which this setting is for
++    virtual void set_iq_balance(const bool enable, const size_t chan) = 0;
++
++    //! Set the I/Q imbalance correction value explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_rx_iq_balance() for more details.
++    //
++    // \param offset The DC offset value that gets used for compensation
++    // \param chan The channel for which this setting is for
++    virtual void set_iq_balance(const std::complex<double>& correction,
++                                const size_t chan) = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_RX_RADIO_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_rx_streamer.h b/gr-uhd/include/gnuradio/uhd/rfnoc_rx_streamer.h
+new file mode 100644
+index 000000000..fdcd15e45
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_rx_streamer.h
+@@ -0,0 +1,62 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_RX_STREAMER_H
++#define INCLUDED_GR_UHD_RFNOC_RX_STREAMER_H
++
++#include <gnuradio/sync_block.h>
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++#include <uhd/stream.hpp>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC Rx Streamer: Block to handle data flow from an RFNoC flow graph into
++ * a GNU Radio flow graph.
++ *
++ * Use this block for ingress into a GNU Radio flow graph. "Rx" is from the
++ * viewpoint of the GNU Radio flow graph. For example, if the GNU Radio flow
++ * graph is receiving samples from a radio, use this block to transport the
++ * samples into GNU Radio.
++ *
++ * Note: The input ports of this block can only connect to other RFNoC blocks.
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_rx_streamer : virtual public gr::sync_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_rx_streamer> sptr;
++
++    /*!
++     * \param graph Reference to the graph this block is connected to
++     * \param num_chans Number of input- and output ports
++     * \param stream_args These will be passed on to
++     *                    rfnoc_graph::create_rx_streamer, see that for details.
++     *                    The cpu_format and otw_format parts of these args will
++     *                    be used to determine the in- and output signatures of
++     *                    this block.
++     * \param vlen Vector length
++     * \param issue_stream_cmd_on_start If true, the streamer sends a stream
++     *                                  command upstream.
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const size_t num_chans,
++                     const ::uhd::stream_args_t& stream_args,
++                     const size_t vlen = 1,
++                     const bool issue_stream_cmd_on_start = true);
++
++    //! Return the unique ID associated with the underlying RFNoC streamer
++    virtual std::string get_unique_id() const = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_RX_STREAMER_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_tx_radio.h b/gr-uhd/include/gnuradio/uhd/rfnoc_tx_radio.h
+new file mode 100644
+index 000000000..9fe115be2
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_tx_radio.h
+@@ -0,0 +1,146 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_TX_RADIO_H
++#define INCLUDED_GR_UHD_RFNOC_TX_RADIO_H
++
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC TX Radio
++ *
++ * This wraps a radio block into GNU Radio. Note: When doing TX and RX in the
++ * same flow graph, simply crate an rfnoc_rx_radio and an rfnoc_tx_radio with
++ * the same block ID.
++ *
++ * \ingroup uhd_blk
++ */
++class GR_UHD_API rfnoc_tx_radio : virtual public rfnoc_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_tx_radio> sptr;
++
++    /*!
++     * \param graph Reference to the underlying rfnoc_graph object
++     * \param block_args Additional block arguments
++     * \param device_select Device Selection
++     * \param instance Instance Selection
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const ::uhd::device_addr_t& block_args,
++                     const int device_select,
++                     const int instance);
++
++    //! Set the input sampling rate of the radio block
++    //
++    // Note: The actual rate of the radio will be coerced to whatever it is
++    // capable of.
++    //
++    // \param rate The new sampling rate
++    virtual double set_rate(const double rate) = 0;
++
++    //! Set the antenna for this radio
++    //
++    // \param antenna The antenna name (e.g., "RX2"). Valid name depend on the
++    //                underlying hardware.
++    // \param chan The channel for which this antenna setting is for
++    virtual void set_antenna(const std::string& antenna, const size_t chan) = 0;
++
++    //! Set the TX frequency for this radio
++    //
++    // \param frequency The received frequency (e.g., 1e9)
++    // \param chan The channel for which this frequency setting is for
++    virtual double set_frequency(const double frequency, const size_t chan) = 0;
++
++    //! Configure the tune args for this RX radio
++    //
++    // \param args The new args (e.g., "mode_n=1")
++    // \param chan The channel for which this setting is for
++    virtual void set_tune_args(const ::uhd::device_addr_t& args, const size_t chan) = 0;
++
++    //! Configure the overall gain for this TX radio
++    //
++    // \param gain The new gain value (in dB)
++    // \param chan The channel for which this setting is for
++    virtual double set_gain(const double gain, const size_t chan) = 0;
++
++    //! Configure a specific gain for this RX radio
++    //
++    // \param gain The new gain value (in dB)
++    // \param name The gain stage name to set
++    // \param chan The channel for which this setting is for
++    virtual double
++    set_gain(const double gain, const std::string& name, const size_t chan) = 0;
++
++    //! Switch the gain profile for this RX radio
++    //
++    // \param profile The name of the gain profile (e.g., "default")
++    // \param chan The channel for which this setting is for
++    virtual void set_gain_profile(const std::string& profile, const size_t chan) = 0;
++
++    //! Set the analog bandwidth for this RX radio
++    //
++    // \param bandwidth The new bandwidth, in Hz
++    // \param chan The channel for which this setting is for
++    virtual double set_bandwidth(const double bandwidth, const size_t chan) = 0;
++
++    //! Set the LO source for this TX radio
++    //
++    // Note: Available sources depend on the underlying hardware.
++    //
++    // \param source The new LO source (e.g., "internal")
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual void set_lo_source(const std::string& source,
++                               const std::string& name,
++                               const size_t chan) = 0;
++
++    //! Enable/disable LO export for this TX radio
++    //
++    // \param enabled When true, export this LO
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual void set_lo_export_enabled(const bool enabled,
++                                       const std::string& name,
++                                       const size_t chan) = 0;
++
++    //! Configure the LO frequency explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_tx_lo_freq() for more details.
++    // \param freq The new LO frequency
++    // \param name The LO name (e.g. "LO1")
++    // \param chan The channel for which this setting is for
++    virtual double
++    set_lo_freq(const double freq, const std::string& name, const size_t chan) = 0;
++
++    //! Set the DC offset value explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_tx_dc_offset() for more details.
++    //
++    // \param offset The DC offset value that gets used for compensation
++    // \param chan The channel for which this setting is for
++    virtual void set_dc_offset(const std::complex<double>& offset, const size_t chan) = 0;
++
++    //! Set the I/Q imbalance correction value explicitly
++    //
++    // Consult uhd::rfnoc::radio_control::set_tx_iq_balance() for more details.
++    //
++    // \param offset The DC offset value that gets used for compensation
++    // \param chan The channel for which this setting is for
++    virtual void set_iq_balance(const std::complex<double>& correction,
++                                const size_t chan) = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_TX_RADIO_H */
+diff --git a/gr-uhd/include/gnuradio/uhd/rfnoc_tx_streamer.h b/gr-uhd/include/gnuradio/uhd/rfnoc_tx_streamer.h
+new file mode 100644
+index 000000000..251575a0e
+--- /dev/null
++++ b/gr-uhd/include/gnuradio/uhd/rfnoc_tx_streamer.h
+@@ -0,0 +1,59 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_TX_STREAMER_H
++#define INCLUDED_GR_UHD_RFNOC_TX_STREAMER_H
++
++#include <gnuradio/sync_block.h>
++#include <gnuradio/uhd/api.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++#include <uhd/stream.hpp>
++
++namespace gr {
++namespace uhd {
++
++/*! RFNoC Tx Streamer: Block to handle data flow from a GNU Radio flow graph
++ * into an RFNoC flow graph.
++ *
++ * Use this block for egress from a GNU Radio flow graph. "Tx" is from the
++ * viewpoint of the GNU Radio flow graph. For example, if the GNU Radio flow
++ * graph is creating samples to be transmitted to a radio, use this block to
++ * transport the samples out of GNU Radio.
++ *
++ * Note: The output ports of this block can only connect to other RFNoC blocks.
++ *
++ * \ingroup ettus
++ */
++class GR_UHD_API rfnoc_tx_streamer : virtual public gr::sync_block
++{
++public:
++    typedef boost::shared_ptr<rfnoc_tx_streamer> sptr;
++
++    /*!
++     * \param graph Reference to the graph this block is connected to
++     * \param num_chans Number of input- and output ports
++     * \param stream_args These will be passed on to
++     *                    rfnoc_graph::create_tx_streamer, see that for details.
++     *                    The cpu_format and otw_format parts of these args will
++     *                    be used to determine the in- and output signatures of
++     *                    this block.
++     * \param vlen Vector length
++     */
++    static sptr make(rfnoc_graph::sptr graph,
++                     const size_t num_chans,
++                     const ::uhd::stream_args_t& stream_args,
++                     const size_t vlen = 1);
++
++    //! Return the unique ID associated with the underlying RFNoC streamer
++    virtual std::string get_unique_id() const = 0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_TX_STREAMER_H */
+diff --git a/gr-uhd/lib/CMakeLists.txt b/gr-uhd/lib/CMakeLists.txt
+index d4678013f..e1da8b2e2 100644
+--- a/gr-uhd/lib/CMakeLists.txt
++++ b/gr-uhd/lib/CMakeLists.txt
+@@ -8,13 +8,29 @@
+ ########################################################################
+ # Setup library
+ ########################################################################
+-add_library(gnuradio-uhd
++set(LIB_GR_UHD_SOURCES
++    amsg_source_impl.cc
+     usrp_block_impl.cc
+-    usrp_source_impl.cc
+     usrp_sink_impl.cc
+-    amsg_source_impl.cc
++    usrp_source_impl.cc
+ )
+ 
++if(ENABLE_UHD_RFNOC)
++    list(APPEND LIB_GR_UHD_SOURCES
++        rfnoc_block.cc
++        rfnoc_block_generic_impl.cc
++        rfnoc_ddc_impl.cc
++        rfnoc_duc_impl.cc
++        rfnoc_graph_impl.cc
++        rfnoc_rx_radio_impl.cc
++        rfnoc_rx_streamer_impl.cc
++        rfnoc_tx_radio_impl.cc
++        rfnoc_tx_streamer_impl.cc
++    )
++endif(ENABLE_UHD_RFNOC)
++
++add_library(gnuradio-uhd ${LIB_GR_UHD_SOURCES})
++
+ target_link_libraries(gnuradio-uhd
+   gnuradio-runtime
+   UHD::UHD
+@@ -26,8 +42,6 @@ target_include_directories(gnuradio-uhd
+   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+   )
+ 
+-
+-
+ #Add Windows DLL resource file if using MSVC
+ if(MSVC)
+     include(${CMAKE_SOURCE_DIR}/cmake/Modules/GrVersion.cmake)
+diff --git a/gr-uhd/lib/rfnoc_block.cc b/gr-uhd/lib/rfnoc_block.cc
+new file mode 100644
+index 000000000..7bfd5747a
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_block.cc
+@@ -0,0 +1,62 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <gnuradio/uhd/rfnoc_block.h>
++
++namespace gr {
++namespace uhd {
++
++/******************************************************************************
++ * Factory and Structors
++ *****************************************************************************/
++::uhd::rfnoc::noc_block_base::sptr
++rfnoc_block::make_block_ref(rfnoc_graph::sptr graph,
++                            const ::uhd::device_addr_t& block_args,
++                            const std::string& block_name,
++                            const int device_select,
++                            const int block_select,
++                            const size_t max_ref_count)
++{
++    const std::string block_id =
++        graph->get_block_id(block_name, device_select, block_select);
++    if (block_id.empty()) {
++        throw std::runtime_error("Cannot find block!");
++    }
++
++    return graph->get_block_ref(block_id, max_ref_count);
++}
++
++rfnoc_block::rfnoc_block(::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : gr::block(
++          std::string("RFNoC::") + block_ref->get_unique_id(),
++          gr::io_signature::make(0, 0, 0), // All RFNoC blocks don't stream into GNU Radio
++          gr::io_signature::make(0, 0, 0)),
++      d_block_ref(block_ref)
++{
++}
++
++/******************************************************************************
++ * GNU Radio API
++ *****************************************************************************/
++std::string rfnoc_block::get_unique_id() const { return d_block_ref->get_unique_id(); }
++
++int rfnoc_block::general_work(int /*noutput_items*/,
++                              gr_vector_int& /*ninput_items*/,
++                              gr_vector_const_void_star& /*input_items*/,
++                              gr_vector_void_star& /*output_items*/)
++{
++    // We should never land here
++    throw std::runtime_error("Unexpected call to general_work() in an RFNoC block!");
++    return 0;
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_block_generic_impl.cc b/gr-uhd/lib/rfnoc_block_generic_impl.cc
+new file mode 100644
+index 000000000..90bdc35c5
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_block_generic_impl.cc
+@@ -0,0 +1,43 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_block_generic_impl.h"
++#include <gnuradio/uhd/rfnoc_graph.h>
++
++namespace gr {
++namespace uhd {
++
++/******************************************************************************
++ * Factory and Structors
++ *****************************************************************************/
++rfnoc_block_generic::sptr
++rfnoc_block_generic::make(rfnoc_graph::sptr graph,
++                          const ::uhd::device_addr_t& block_args,
++                          const std::string& block_name,
++                          const int device_select,
++                          const int block_select)
++{
++    return gnuradio::get_initial_sptr(
++        new rfnoc_block_generic_impl(rfnoc_block::make_block_ref(
++            graph, block_args, block_name, device_select, block_select)));
++}
++
++rfnoc_block_generic_impl::rfnoc_block_generic_impl(
++    ::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : rfnoc_block(block_ref)
++{
++}
++
++rfnoc_block_generic_impl::~rfnoc_block_generic_impl() {}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_block_generic_impl.h b/gr-uhd/lib/rfnoc_block_generic_impl.h
+new file mode 100644
+index 000000000..9ee7d3fb8
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_block_generic_impl.h
+@@ -0,0 +1,27 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_block_generic.h>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_block_generic_impl : public rfnoc_block_generic
++{
++public:
++    rfnoc_block_generic_impl(::uhd::rfnoc::noc_block_base::sptr block_ref);
++    ~rfnoc_block_generic_impl();
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_BLOCK_GENERIC_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_ddc_impl.cc b/gr-uhd/lib/rfnoc_ddc_impl.cc
+new file mode 100644
+index 000000000..7559c6acf
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_ddc_impl.cc
+@@ -0,0 +1,52 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_ddc_impl.h"
++#include <gnuradio/io_signature.h>
++
++namespace gr {
++namespace uhd {
++
++rfnoc_ddc::sptr rfnoc_ddc::make(rfnoc_graph::sptr graph,
++                                const ::uhd::device_addr_t& block_args,
++                                const int device_select,
++                                const int instance)
++{
++    return gnuradio::get_initial_sptr(new rfnoc_ddc_impl(
++        rfnoc_block::make_block_ref(graph, block_args, "DDC", device_select, instance)));
++}
++
++
++rfnoc_ddc_impl::rfnoc_ddc_impl(::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : rfnoc_block(block_ref), d_ddc_ref(get_block_ref<::uhd::rfnoc::ddc_block_control>())
++{
++}
++
++rfnoc_ddc_impl::~rfnoc_ddc_impl() {}
++
++/******************************************************************************
++ * rfnoc_ddc API
++ *****************************************************************************/
++double rfnoc_ddc_impl::set_freq(const double freq,
++                                const size_t chan,
++                                const ::uhd::time_spec_t time)
++{
++    return d_ddc_ref->set_freq(freq, chan, time);
++}
++
++double rfnoc_ddc_impl::set_output_rate(const double rate, const size_t chan)
++{
++    return d_ddc_ref->set_output_rate(rate, chan);
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_ddc_impl.h b/gr-uhd/lib/rfnoc_ddc_impl.h
+new file mode 100644
+index 000000000..2cf3a89c4
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_ddc_impl.h
+@@ -0,0 +1,37 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_DDC_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_DDC_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_ddc.h>
++#include <uhd/rfnoc/ddc_block_control.hpp>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_ddc_impl : public rfnoc_ddc
++{
++public:
++    rfnoc_ddc_impl(::uhd::rfnoc::noc_block_base::sptr block_ref);
++    ~rfnoc_ddc_impl();
++
++    /*** API *****************************************************************/
++    double set_freq(const double freq,
++                    const size_t chan,
++                    const ::uhd::time_spec_t time = ::uhd::time_spec_t::ASAP);
++    double set_output_rate(const double rate, const size_t chan);
++
++private:
++    ::uhd::rfnoc::ddc_block_control::sptr d_ddc_ref;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_DDC_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_duc_impl.cc b/gr-uhd/lib/rfnoc_duc_impl.cc
+new file mode 100644
+index 000000000..c77f2313b
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_duc_impl.cc
+@@ -0,0 +1,52 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_duc_impl.h"
++#include <gnuradio/io_signature.h>
++
++namespace gr {
++namespace uhd {
++
++rfnoc_duc::sptr rfnoc_duc::make(rfnoc_graph::sptr graph,
++                                const ::uhd::device_addr_t& block_args,
++                                const int device_select,
++                                const int instance)
++{
++    return gnuradio::get_initial_sptr(new rfnoc_duc_impl(
++        rfnoc_block::make_block_ref(graph, block_args, "DUC", device_select, instance)));
++}
++
++
++rfnoc_duc_impl::rfnoc_duc_impl(::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : rfnoc_block(block_ref), d_duc_ref(get_block_ref<::uhd::rfnoc::duc_block_control>())
++{
++}
++
++rfnoc_duc_impl::~rfnoc_duc_impl() {}
++
++/******************************************************************************
++ * rfnoc_duc API
++ *****************************************************************************/
++double rfnoc_duc_impl::set_freq(const double freq,
++                                const size_t chan,
++                                const ::uhd::time_spec_t time)
++{
++    return d_duc_ref->set_freq(freq, chan, time);
++}
++
++double rfnoc_duc_impl::set_input_rate(const double rate, const size_t chan)
++{
++    return d_duc_ref->set_input_rate(rate, chan);
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_duc_impl.h b/gr-uhd/lib/rfnoc_duc_impl.h
+new file mode 100644
+index 000000000..1bf1306e3
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_duc_impl.h
+@@ -0,0 +1,37 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_DUC_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_DUC_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_duc.h>
++#include <uhd/rfnoc/duc_block_control.hpp>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_duc_impl : public rfnoc_duc
++{
++public:
++    rfnoc_duc_impl(::uhd::rfnoc::noc_block_base::sptr block_ref);
++    ~rfnoc_duc_impl();
++
++    /*** API *****************************************************************/
++    double set_freq(const double freq,
++                    const size_t chan,
++                    const ::uhd::time_spec_t time = ::uhd::time_spec_t::ASAP);
++    double set_input_rate(const double rate, const size_t chan);
++
++private:
++    ::uhd::rfnoc::duc_block_control::sptr d_duc_ref;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_DUC_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_graph_impl.cc b/gr-uhd/lib/rfnoc_graph_impl.cc
+new file mode 100644
+index 000000000..436faeede
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_graph_impl.cc
+@@ -0,0 +1,214 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "gr_uhd_common.h"
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++#include <uhd/rfnoc/mb_controller.hpp>
++#include <uhd/rfnoc_graph.hpp>
++#include <unordered_map>
++#include <boost/make_shared.hpp>
++#include <atomic>
++#include <stdexcept>
++
++using ::uhd::rfnoc::block_id_t;
++using namespace gr::uhd;
++using namespace ::uhd;
++
++
++class rfnoc_graph_impl : public rfnoc_graph
++{
++public:
++    rfnoc_graph_impl(const device_addr_t& dev_addr)
++        : _graph(::uhd::rfnoc::rfnoc_graph::make(dev_addr))
++    {
++        // nop
++    }
++
++    void connect(const std::string& src_block_id,
++                 const size_t src_block_port,
++                 const std::string& dst_block_id,
++                 const size_t dst_block_port,
++                 const bool skip_property_propagation)
++    {
++        if (_tx_streamers.count(src_block_id)) {
++            if (_rx_streamers.count(dst_block_id)) {
++                throw std::runtime_error("Cannot connect RFNoC streamers directly!");
++            }
++            _graph->connect(_tx_streamers.at(src_block_id),
++                            src_block_port,
++                            block_id_t(dst_block_id),
++                            dst_block_port);
++            return;
++        }
++        if (_rx_streamers.count(dst_block_id)) {
++            _graph->connect(src_block_id,
++                            src_block_port,
++                            _rx_streamers.at(dst_block_id),
++                            dst_block_port);
++            return;
++        }
++
++        _graph->connect(block_id_t(src_block_id),
++                        src_block_port,
++                        block_id_t(dst_block_id),
++                        dst_block_port);
++    }
++
++    void connect(const std::string& block1,
++                 const std::string& block2,
++                 bool skip_property_propagation)
++    {
++        connect(block1, 0, block2, 0, skip_property_propagation);
++    }
++
++    void connect(rfnoc_block::sptr src_block,
++                 const size_t src_block_port,
++                 rfnoc_block::sptr dst_block,
++                 const size_t dst_block_port,
++                 const bool skip_property_propagation)
++    {
++        connect(src_block->get_unique_id(),
++                src_block_port,
++                dst_block->get_unique_id(),
++                dst_block_port,
++                skip_property_propagation);
++    }
++
++
++    ::uhd::rx_streamer::sptr create_rx_streamer(const size_t num_ports,
++                                                const stream_args_t& args)
++    {
++        auto streamer = _graph->create_rx_streamer(num_ports, args);
++        const std::string streamer_id =
++            std::dynamic_pointer_cast<::uhd::rfnoc::node_t>(streamer)->get_unique_id();
++        _rx_streamers.insert({ streamer_id, streamer });
++        return streamer;
++    }
++
++    ::uhd::tx_streamer::sptr create_tx_streamer(const size_t num_ports,
++                                                const stream_args_t& args)
++    {
++        auto streamer = _graph->create_tx_streamer(num_ports, args);
++        const std::string streamer_id =
++            std::dynamic_pointer_cast<::uhd::rfnoc::node_t>(streamer)->get_unique_id();
++        _tx_streamers.insert({ streamer_id, streamer });
++        return streamer;
++    }
++
++    void commit()
++    {
++        if (!_commit_called.exchange(true)) {
++            _graph->commit();
++        }
++    }
++
++    std::string get_block_id(const std::string& block_name,
++                             const int device_select,
++                             const int block_select)
++    {
++        std::string block_hint = block_name;
++        if (device_select >= 0) {
++            block_hint = str(boost::format("%d/%s") % device_select % block_hint);
++        }
++        if (block_select >= 0) {
++            block_hint = str(boost::format("%s#%d") % block_hint % block_select);
++        }
++
++        auto block_ids = _graph->find_blocks(block_hint);
++        if (block_ids.empty()) {
++            return "";
++        }
++
++        // If the hint produced a unique hit, then we return that
++        if (block_ids.size() == 1) {
++            return block_ids.front().to_string();
++        }
++
++        // If the hint produced multiple hits, then we default to one that was
++        // not yet acquired. If that fails, return any one.
++        std::lock_guard<std::mutex> l(_block_ref_mutex);
++        for (const auto& block_id : block_ids) {
++            const std::string block_id_str = block_id.to_string();
++            if (!_acqd_block_refs.count(block_id_str)) {
++                return block_id_str;
++            }
++        }
++        return block_ids.front().to_string();
++    }
++
++    void set_time_source(const std::string& source, const size_t mb_index)
++    {
++        _graph->get_mb_controller(mb_index)->set_time_source(source);
++    }
++
++    void set_clock_source(const std::string& source, const size_t mb_index)
++    {
++        _graph->get_mb_controller(mb_index)->set_clock_source(source);
++    }
++
++    ::uhd::rfnoc::noc_block_base::sptr get_block_ref(const std::string& block_id,
++                                                     const size_t max_ref_count)
++    {
++        std::lock_guard<std::mutex> l(_block_ref_mutex);
++        if (max_ref_count == 0) {
++            throw std::runtime_error("Invalid max_ref_count 0!");
++        }
++
++        auto block_ref = _graph->get_block(block_id_t(block_id));
++        const std::string real_block_id = block_ref->get_unique_id();
++
++        // If this is the first time we encounter this block ID, create a ref
++        // counter for it
++        if (!_acqd_block_refs.count(real_block_id)) {
++            _acqd_block_refs.insert({ real_block_id, 0 });
++        }
++        // Make sure the max ref count limit is set. If it already exists,
++        // decrease it if max_ref_count is smaller than what we already have.
++        if (!_max_ref_count.count(real_block_id)) {
++            _max_ref_count.insert({ real_block_id, max_ref_count });
++        } else {
++            _max_ref_count[real_block_id] =
++                std::min(max_ref_count, _max_ref_count[real_block_id]);
++        }
++        // Now check we haven't exceeded the ref count limit
++        if (_acqd_block_refs.at(real_block_id) >= _max_ref_count.at(real_block_id)) {
++            throw std::runtime_error(
++                std::string("Attempting to get another reference to block ") +
++                real_block_id);
++        }
++        // Increase ref counter for this block ID
++        _acqd_block_refs[real_block_id]++;
++
++        // And Bob's your uncle
++        return block_ref;
++    }
++
++
++private:
++    std::atomic<bool> _commit_called{ false };
++    ::uhd::rfnoc::rfnoc_graph::sptr _graph;
++
++    std::unordered_map<std::string, ::uhd::rx_streamer::sptr> _rx_streamers;
++    std::unordered_map<std::string, ::uhd::tx_streamer::sptr> _tx_streamers;
++
++    std::mutex _block_ref_mutex;
++    std::unordered_map<std::string, size_t> _acqd_block_refs;
++    std::unordered_map<std::string, size_t> _max_ref_count;
++};
++
++
++rfnoc_graph::sptr rfnoc_graph::make(const device_addr_t& dev_addr)
++{
++    check_abi();
++    return boost::make_shared<rfnoc_graph_impl>(dev_addr);
++}
+diff --git a/gr-uhd/lib/rfnoc_rx_radio_impl.cc b/gr-uhd/lib/rfnoc_rx_radio_impl.cc
+new file mode 100644
+index 000000000..3012e0fbf
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_rx_radio_impl.cc
+@@ -0,0 +1,133 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_rx_radio_impl.h"
++#include <gnuradio/io_signature.h>
++
++namespace gr {
++namespace uhd {
++
++constexpr size_t MAX_RADIO_REFS = 2; // One for RX, one for TX
++
++rfnoc_rx_radio::sptr rfnoc_rx_radio::make(rfnoc_graph::sptr graph,
++                                          const ::uhd::device_addr_t& block_args,
++                                          const int device_select,
++                                          const int instance)
++{
++    return gnuradio::get_initial_sptr(new rfnoc_rx_radio_impl(rfnoc_block::make_block_ref(
++        graph, block_args, "Radio", device_select, instance, MAX_RADIO_REFS)));
++}
++
++
++rfnoc_rx_radio_impl::rfnoc_rx_radio_impl(::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : rfnoc_block(block_ref), d_radio_ref(get_block_ref<::uhd::rfnoc::radio_control>())
++{
++}
++
++rfnoc_rx_radio_impl::~rfnoc_rx_radio_impl() {}
++
++/******************************************************************************
++ * rfnoc_rx_radio API
++ *****************************************************************************/
++double rfnoc_rx_radio_impl::set_rate(const double rate)
++{
++    return d_radio_ref->set_rate(rate);
++}
++
++void rfnoc_rx_radio_impl::set_antenna(const std::string& antenna, const size_t chan)
++{
++    return d_radio_ref->set_rx_antenna(antenna, chan);
++}
++
++double rfnoc_rx_radio_impl::set_frequency(const double frequency, const size_t chan)
++{
++    return d_radio_ref->set_rx_frequency(frequency, chan);
++}
++
++void rfnoc_rx_radio_impl::set_tune_args(const ::uhd::device_addr_t& args,
++                                        const size_t chan)
++{
++    return d_radio_ref->set_rx_tune_args(args, chan);
++}
++
++double rfnoc_rx_radio_impl::set_gain(const double gain, const size_t chan)
++{
++    return d_radio_ref->set_rx_gain(gain, chan);
++}
++
++double rfnoc_rx_radio_impl::set_gain(const double gain,
++                                     const std::string& name,
++                                     const size_t chan)
++{
++    return d_radio_ref->set_rx_gain(gain, name, chan);
++}
++
++void rfnoc_rx_radio_impl::set_agc(const bool enable, const size_t chan)
++{
++    return d_radio_ref->set_rx_agc(enable, chan);
++}
++
++void rfnoc_rx_radio_impl::set_gain_profile(const std::string& profile, const size_t chan)
++{
++    return d_radio_ref->set_rx_gain_profile(profile, chan);
++}
++
++double rfnoc_rx_radio_impl::set_bandwidth(const double bandwidth, const size_t chan)
++{
++    return d_radio_ref->set_rx_bandwidth(bandwidth, chan);
++}
++
++void rfnoc_rx_radio_impl::set_lo_source(const std::string& source,
++                                        const std::string& name,
++                                        const size_t chan)
++{
++    return d_radio_ref->set_rx_lo_source(source, name, chan);
++}
++
++void rfnoc_rx_radio_impl::set_lo_export_enabled(const bool enabled,
++                                                const std::string& name,
++                                                const size_t chan)
++{
++    return d_radio_ref->set_rx_lo_export_enabled(enabled, name, chan);
++}
++
++double rfnoc_rx_radio_impl::set_lo_freq(const double freq,
++                                        const std::string& name,
++                                        const size_t chan)
++{
++    return d_radio_ref->set_rx_lo_freq(freq, name, chan);
++}
++
++void rfnoc_rx_radio_impl::set_dc_offset(const bool enable, const size_t chan)
++{
++    return d_radio_ref->set_rx_dc_offset(enable, chan);
++}
++
++void rfnoc_rx_radio_impl::set_dc_offset(const std::complex<double>& offset,
++                                        const size_t chan)
++{
++    return d_radio_ref->set_rx_dc_offset(offset, chan);
++}
++
++void rfnoc_rx_radio_impl::set_iq_balance(const bool enable, const size_t chan)
++{
++    return d_radio_ref->set_rx_iq_balance(enable, chan);
++}
++
++void rfnoc_rx_radio_impl::set_iq_balance(const std::complex<double>& correction,
++                                         const size_t chan)
++{
++    return d_radio_ref->set_rx_iq_balance(correction, chan);
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_rx_radio_impl.h b/gr-uhd/lib/rfnoc_rx_radio_impl.h
+new file mode 100644
+index 000000000..5cffaf181
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_rx_radio_impl.h
+@@ -0,0 +1,51 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_RX_RADIO_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_RX_RADIO_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_rx_radio.h>
++#include <uhd/rfnoc/radio_control.hpp>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_rx_radio_impl : public rfnoc_rx_radio
++{
++public:
++    rfnoc_rx_radio_impl(::uhd::rfnoc::noc_block_base::sptr block_ref);
++    ~rfnoc_rx_radio_impl();
++
++    /*** API *****************************************************************/
++    double set_rate(const double rate);
++    void set_antenna(const std::string& antenna, const size_t chan);
++    double set_frequency(const double frequency, const size_t chan);
++    void set_tune_args(const ::uhd::device_addr_t& args, const size_t chan);
++    double set_gain(const double gain, const size_t chan);
++    double set_gain(const double gain, const std::string& name, const size_t chan);
++    void set_agc(const bool enable, const size_t chan);
++    void set_gain_profile(const std::string& profile, const size_t chan);
++    double set_bandwidth(const double bandwidth, const size_t chan);
++    void
++    set_lo_source(const std::string& source, const std::string& name, const size_t chan);
++    void
++    set_lo_export_enabled(const bool enabled, const std::string& name, const size_t chan);
++    double set_lo_freq(const double freq, const std::string& name, const size_t chan);
++    void set_dc_offset(const bool enable, const size_t chan);
++    void set_dc_offset(const std::complex<double>& offset, const size_t chan);
++    void set_iq_balance(const bool enable, const size_t chan);
++    void set_iq_balance(const std::complex<double>& correction, const size_t chan);
++
++private:
++    ::uhd::rfnoc::radio_control::sptr d_radio_ref;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_RX_RADIO_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_rx_streamer_impl.cc b/gr-uhd/lib/rfnoc_rx_streamer_impl.cc
+new file mode 100644
+index 000000000..ee7e854cd
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_rx_streamer_impl.cc
+@@ -0,0 +1,192 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "gr_uhd_common.h"
++#include "rfnoc_rx_streamer_impl.h"
++#include <gnuradio/io_signature.h>
++#include <uhd/convert.hpp>
++#include <uhd/rfnoc/node.hpp>
++
++const pmt::pmt_t EOB_KEY = pmt::string_to_symbol("rx_eob");
++const pmt::pmt_t CMD_TIME_KEY = pmt::mp("time");
++const pmt::pmt_t CMD_CHAN_KEY = pmt::mp("chan");
++const pmt::pmt_t MSG_PORT_RFNOC = pmt::mp("rfnoc");
++
++namespace gr {
++namespace uhd {
++
++/******************************************************************************
++ * Factory and Structors
++ *****************************************************************************/
++rfnoc_rx_streamer::sptr rfnoc_rx_streamer::make(rfnoc_graph::sptr graph,
++                                                const size_t num_chans,
++                                                const ::uhd::stream_args_t& stream_args,
++                                                const size_t vlen,
++                                                const bool issue_stream_cmd_on_start)
++{
++    return gnuradio::get_initial_sptr(new rfnoc_rx_streamer_impl(
++        graph, num_chans, stream_args, vlen, issue_stream_cmd_on_start));
++}
++
++
++rfnoc_rx_streamer_impl::rfnoc_rx_streamer_impl(rfnoc_graph::sptr graph,
++                                               const size_t num_chans,
++                                               const ::uhd::stream_args_t& stream_args,
++                                               const size_t vlen,
++                                               const bool issue_stream_cmd_on_start)
++    : gr::sync_block(
++          "rfnoc_rx_streamer",
++          gr::io_signature::make(0, 0, 0),
++          gr::io_signature::make(
++              num_chans,
++              num_chans,
++              ::uhd::convert::get_bytes_per_item(stream_args.cpu_format) * vlen)),
++      d_num_chans(num_chans),
++      d_itemsize(::uhd::convert::get_bytes_per_item(stream_args.cpu_format)),
++      d_vlen(vlen),
++      d_graph(graph),
++      d_stream_args(stream_args),
++      d_streamer(graph->create_rx_streamer(num_chans, stream_args)),
++      d_unique_id(
++          std::dynamic_pointer_cast<::uhd::rfnoc::node_t>(d_streamer)->get_unique_id()),
++      d_issue_stream_cmd_on_start(issue_stream_cmd_on_start)
++{
++    // nop
++}
++
++rfnoc_rx_streamer_impl::~rfnoc_rx_streamer_impl() {}
++
++
++/******************************************************************************
++ * GNU Radio API
++ *****************************************************************************/
++bool rfnoc_rx_streamer_impl::check_topology(int, int)
++{
++    GR_LOG_DEBUG(d_logger, "Committing graph...");
++    d_graph->commit();
++    return true;
++}
++
++bool rfnoc_rx_streamer_impl::start()
++{
++    if (d_issue_stream_cmd_on_start) {
++        // Start the streamers
++        ::uhd::stream_cmd_t stream_cmd(::uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS);
++        if (d_start_time_set) {
++            stream_cmd.stream_now = false;
++            stream_cmd.time_spec = d_start_time;
++            d_start_time_set = false;
++        } else {
++            stream_cmd.stream_now = true;
++        }
++
++        GR_LOG_DEBUG(d_logger, "Sending start stream command...");
++        d_streamer->issue_stream_cmd(stream_cmd);
++    } else {
++        GR_LOG_DEBUG(d_logger, "Starting RX streamer without stream command...");
++    }
++    return true;
++}
++
++bool rfnoc_rx_streamer_impl::stop()
++{
++    // If we issue a stream command on start, we also issue it on stop
++    if (d_issue_stream_cmd_on_start) {
++        ::uhd::stream_cmd_t stream_cmd(::uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
++        d_streamer->issue_stream_cmd(stream_cmd);
++    }
++    flush();
++    return true;
++}
++
++int rfnoc_rx_streamer_impl::work(int noutput_items,
++                                 gr_vector_const_void_star& input_items,
++                                 gr_vector_void_star& output_items)
++{
++    const size_t max_num_items_to_rx = noutput_items * d_vlen;
++    const size_t num_items_recvd =
++        d_streamer->recv(output_items, max_num_items_to_rx, d_metadata, d_timeout);
++
++    const size_t num_vecs_recvd = num_items_recvd / d_vlen;
++    if (num_items_recvd % d_vlen) {
++        // TODO: Create a fix for this. What will happen is that a partial
++        // vector will be received, but it won't be available in the output_items.
++        // We need to store the partial vector, and prepend it to the next
++        // run.
++        GR_LOG_WARN(d_logger, "Received fractional vector! Expect signal fragmentation.");
++    }
++
++    using ::uhd::rx_metadata_t;
++    switch (d_metadata.error_code) {
++    case rx_metadata_t::ERROR_CODE_NONE:
++        break;
++
++    case rx_metadata_t::ERROR_CODE_TIMEOUT:
++        // its ok to timeout, perhaps the user is doing finite streaming
++        GR_LOG_DEBUG(d_logger, "UHD recv() call timed out.");
++        break;
++
++    case rx_metadata_t::ERROR_CODE_OVERFLOW:
++        // Not much we can do about overruns here, and they get signalled via the
++        // UHD logging interface
++        break;
++
++    default:
++        GR_LOG_WARN(
++            d_logger,
++            str(boost::format("RFNoC Streamer block received error %s (Code: 0x%x)") %
++                d_metadata.strerror() % d_metadata.error_code));
++    }
++
++    if (d_metadata.end_of_burst) {
++        for (size_t i = 0; i < output_items.size(); i++) {
++            add_item_tag(i, nitems_written(i) + num_vecs_recvd - 1, EOB_KEY, pmt::PMT_T);
++        }
++    }
++
++    return num_vecs_recvd;
++}
++
++/******************************************************************************
++ * rfnoc_rx_streamer API
++ *****************************************************************************/
++void rfnoc_rx_streamer_impl::set_start_time(const ::uhd::time_spec_t& time)
++{
++    d_start_time_set = true;
++    d_start_time = time;
++}
++
++/******************************************************************************
++ * Helpers
++ *****************************************************************************/
++void rfnoc_rx_streamer_impl::flush()
++{
++    constexpr size_t nbytes = 4096;
++    const size_t nchan = d_streamer->get_num_channels();
++    std::vector<std::vector<uint8_t>> buffs(nchan, std::vector<uint8_t>(nbytes));
++
++    gr_vector_void_star outputs;
++    for (size_t i = 0; i < nchan; i++) {
++        outputs.push_back(&buffs[i].front());
++    }
++
++    const size_t itemsize = output_signature()->sizeof_stream_item(0);
++    while (true) {
++        d_streamer->recv(outputs, nbytes / itemsize / d_vlen, d_metadata, 0.0);
++        if (d_metadata.error_code != ::uhd::rx_metadata_t::ERROR_CODE_NONE) {
++            break;
++        }
++    }
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_rx_streamer_impl.h b/gr-uhd/lib/rfnoc_rx_streamer_impl.h
+new file mode 100644
+index 000000000..f2da43b56
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_rx_streamer_impl.h
+@@ -0,0 +1,73 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_RX_STREAMER_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_RX_STREAMER_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_rx_streamer.h>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_rx_streamer_impl : public rfnoc_rx_streamer
++{
++public:
++    rfnoc_rx_streamer_impl(rfnoc_graph::sptr graph,
++                           const size_t num_chans,
++                           const ::uhd::stream_args_t& stream_args,
++                           const size_t vlen,
++                           const bool issue_stream_cmd_on_start);
++    ~rfnoc_rx_streamer_impl();
++
++    std::string get_unique_id() const override { return d_unique_id; }
++
++    /***** API ***************************************************************/
++    void set_start_time(const ::uhd::time_spec_t& time);
++
++    /***** GNU Radio API *****************************************************/
++    bool check_topology(int, int) override;
++    bool start() override;
++    bool stop() override;
++    int work(int noutput_items,
++             gr_vector_const_void_star& input_items,
++             gr_vector_void_star& output_items) override;
++
++private:
++    void flush();
++
++    //! Number of streaming channels
++    const size_t d_num_chans;
++    //! Bytes per item (e.g. 4 for sc16)
++    const size_t d_itemsize;
++    //! Input vector length
++    const size_t d_vlen;
++    //! Reference to the underlying graph
++    rfnoc_graph::sptr d_graph;
++    //! Stream args
++    ::uhd::stream_args_t d_stream_args;
++    //! Reference to the actual streamer
++    ::uhd::rx_streamer::sptr d_streamer;
++    //! Copy of the streamer's block ID
++    const std::string d_unique_id;
++    //! Stash for the TX metadata
++    ::uhd::rx_metadata_t d_metadata;
++    //! RX timeout value
++    double d_timeout = 1.0;
++    //! True if the stream should immediately start with the flow graph without
++    // external prompting
++    const bool d_issue_stream_cmd_on_start;
++    //! True if d_start_time holds a value we need to process
++    bool d_start_time_set = false;
++    //! A start time for the next stream command
++    ::uhd::time_spec_t d_start_time;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_RX_STREAMER_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_tx_radio_impl.cc b/gr-uhd/lib/rfnoc_tx_radio_impl.cc
+new file mode 100644
+index 000000000..531eb7539
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_tx_radio_impl.cc
+@@ -0,0 +1,119 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_tx_radio_impl.h"
++#include <gnuradio/io_signature.h>
++
++namespace gr {
++namespace uhd {
++
++constexpr size_t MAX_RADIO_REFS = 2; // One for RX, one for TX
++
++rfnoc_tx_radio::sptr rfnoc_tx_radio::make(rfnoc_graph::sptr graph,
++                                          const ::uhd::device_addr_t& block_args,
++                                          const int device_select,
++                                          const int instance)
++{
++    return gnuradio::get_initial_sptr(new rfnoc_tx_radio_impl(rfnoc_block::make_block_ref(
++        graph, block_args, "Radio", device_select, instance, MAX_RADIO_REFS)));
++}
++
++
++rfnoc_tx_radio_impl::rfnoc_tx_radio_impl(::uhd::rfnoc::noc_block_base::sptr block_ref)
++    : rfnoc_block(block_ref),
++      d_wrapped_ref(std::dynamic_pointer_cast<::uhd::rfnoc::radio_control>(block_ref))
++{
++}
++
++rfnoc_tx_radio_impl::~rfnoc_tx_radio_impl() {}
++
++/******************************************************************************
++ * rfnoc_tx_radio API
++ *****************************************************************************/
++double rfnoc_tx_radio_impl::set_rate(const double rate)
++{
++    return d_wrapped_ref->set_rate(rate);
++}
++
++void rfnoc_tx_radio_impl::set_antenna(const std::string& antenna, const size_t chan)
++{
++    return d_wrapped_ref->set_tx_antenna(antenna, chan);
++}
++
++double rfnoc_tx_radio_impl::set_frequency(const double frequency, const size_t chan)
++{
++    return d_wrapped_ref->set_tx_frequency(frequency, chan);
++}
++
++void rfnoc_tx_radio_impl::set_tune_args(const ::uhd::device_addr_t& args,
++                                        const size_t chan)
++{
++    return d_wrapped_ref->set_tx_tune_args(args, chan);
++}
++
++double rfnoc_tx_radio_impl::set_gain(const double gain, const size_t chan)
++{
++    return d_wrapped_ref->set_tx_gain(gain, chan);
++}
++
++double rfnoc_tx_radio_impl::set_gain(const double gain,
++                                     const std::string& name,
++                                     const size_t chan)
++{
++    return d_wrapped_ref->set_tx_gain(gain, name, chan);
++}
++
++void rfnoc_tx_radio_impl::set_gain_profile(const std::string& profile, const size_t chan)
++{
++    return d_wrapped_ref->set_tx_gain_profile(profile, chan);
++}
++
++double rfnoc_tx_radio_impl::set_bandwidth(const double bandwidth, const size_t chan)
++{
++    return d_wrapped_ref->set_tx_bandwidth(bandwidth, chan);
++}
++
++void rfnoc_tx_radio_impl::set_lo_source(const std::string& source,
++                                        const std::string& name,
++                                        const size_t chan)
++{
++    return d_wrapped_ref->set_tx_lo_source(source, name, chan);
++}
++
++void rfnoc_tx_radio_impl::set_lo_export_enabled(const bool enabled,
++                                                const std::string& name,
++                                                const size_t chan)
++{
++    return d_wrapped_ref->set_tx_lo_export_enabled(enabled, name, chan);
++}
++
++double rfnoc_tx_radio_impl::set_lo_freq(const double freq,
++                                        const std::string& name,
++                                        const size_t chan)
++{
++    return d_wrapped_ref->set_tx_lo_freq(freq, name, chan);
++}
++
++void rfnoc_tx_radio_impl::set_dc_offset(const std::complex<double>& offset,
++                                        const size_t chan)
++{
++    return d_wrapped_ref->set_tx_dc_offset(offset, chan);
++}
++
++void rfnoc_tx_radio_impl::set_iq_balance(const std::complex<double>& correction,
++                                         const size_t chan)
++{
++    return d_wrapped_ref->set_tx_iq_balance(correction, chan);
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_tx_radio_impl.h b/gr-uhd/lib/rfnoc_tx_radio_impl.h
+new file mode 100644
+index 000000000..1738c70e5
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_tx_radio_impl.h
+@@ -0,0 +1,48 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_TX_RADIO_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_TX_RADIO_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_tx_radio.h>
++#include <uhd/rfnoc/radio_control.hpp>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_tx_radio_impl : public rfnoc_tx_radio
++{
++public:
++    rfnoc_tx_radio_impl(::uhd::rfnoc::noc_block_base::sptr block_ref);
++    ~rfnoc_tx_radio_impl();
++
++    /*** API *****************************************************************/
++    double set_rate(const double rate);
++    void set_antenna(const std::string& antenna, const size_t chan);
++    double set_frequency(const double frequency, const size_t chan);
++    void set_tune_args(const ::uhd::device_addr_t& args, const size_t chan);
++    double set_gain(const double gain, const size_t chan);
++    double set_gain(const double gain, const std::string& name, const size_t chan);
++    void set_gain_profile(const std::string& profile, const size_t chan);
++    double set_bandwidth(const double bandwidth, const size_t chan);
++    void
++    set_lo_source(const std::string& source, const std::string& name, const size_t chan);
++    void
++    set_lo_export_enabled(const bool enabled, const std::string& name, const size_t chan);
++    double set_lo_freq(const double freq, const std::string& name, const size_t chan);
++    void set_dc_offset(const std::complex<double>& offset, const size_t chan);
++    void set_iq_balance(const std::complex<double>& correction, const size_t chan);
++
++private:
++    ::uhd::rfnoc::radio_control::sptr d_wrapped_ref;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_TX_RADIO_IMPL_H */
+diff --git a/gr-uhd/lib/rfnoc_tx_streamer_impl.cc b/gr-uhd/lib/rfnoc_tx_streamer_impl.cc
+new file mode 100644
+index 000000000..9a12a8b3f
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_tx_streamer_impl.cc
+@@ -0,0 +1,93 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "rfnoc_tx_streamer_impl.h"
++#include <gnuradio/io_signature.h>
++#include <uhd/convert.hpp>
++#include <uhd/rfnoc/node.hpp>
++
++namespace gr {
++namespace uhd {
++
++/******************************************************************************
++ * Factory and Structors
++ *****************************************************************************/
++rfnoc_tx_streamer::sptr rfnoc_tx_streamer::make(rfnoc_graph::sptr graph,
++                                                const size_t num_chans,
++                                                const ::uhd::stream_args_t& stream_args,
++                                                const size_t vlen)
++{
++    return gnuradio::get_initial_sptr(
++        new rfnoc_tx_streamer_impl(graph, num_chans, stream_args, vlen));
++}
++
++
++rfnoc_tx_streamer_impl::rfnoc_tx_streamer_impl(rfnoc_graph::sptr graph,
++                                               const size_t num_chans,
++                                               const ::uhd::stream_args_t& stream_args,
++                                               const size_t vlen)
++    : gr::sync_block(
++          "rfnoc_tx_streamer",
++          gr::io_signature::make(
++              num_chans,
++              num_chans,
++              ::uhd::convert::get_bytes_per_item(stream_args.cpu_format) * vlen),
++          gr::io_signature::make(0, 0, 0)),
++      d_num_chans(num_chans),
++      d_itemsize(::uhd::convert::get_bytes_per_item(stream_args.cpu_format)),
++      d_vlen(vlen),
++      d_graph(graph),
++      d_stream_args(stream_args),
++      d_streamer(graph->create_tx_streamer(num_chans, stream_args)),
++      d_unique_id(
++          std::dynamic_pointer_cast<::uhd::rfnoc::node_t>(d_streamer)->get_unique_id())
++{
++    // nop
++}
++
++rfnoc_tx_streamer_impl::~rfnoc_tx_streamer_impl() {}
++
++/******************************************************************************
++ * GNU Radio API
++ *****************************************************************************/
++bool rfnoc_tx_streamer_impl::check_topology(int, int)
++{
++    GR_LOG_DEBUG(d_logger, "Committing graph...");
++    d_graph->commit();
++    return true;
++}
++
++/******************************************************************************
++ * GNU Radio API
++ *****************************************************************************/
++int rfnoc_tx_streamer_impl::work(int noutput_items,
++                                 gr_vector_const_void_star& input_items,
++                                 gr_vector_void_star& output_items)
++{
++    const size_t num_items_to_send = noutput_items * d_vlen;
++    const size_t num_items_sent =
++        d_streamer->send(input_items, num_items_to_send, d_metadata, d_timeout);
++    const size_t num_vecs_sent = num_items_sent / d_vlen;
++
++    if (num_items_sent % d_vlen) {
++        // TODO: Create a fix for this. What will happen is that a partial
++        // vector will be sent, but it won't be consumed from the input_items.
++        // We need to store the offset (what fraction of the vector was sent)
++        // and tx that first.
++        GR_LOG_WARN(d_logger, "Sent fractional vector! Expect signal fragmentation.");
++    }
++
++    return num_vecs_sent;
++}
++
++} /* namespace uhd */
++} /* namespace gr */
+diff --git a/gr-uhd/lib/rfnoc_tx_streamer_impl.h b/gr-uhd/lib/rfnoc_tx_streamer_impl.h
+new file mode 100644
+index 000000000..36819b13d
+--- /dev/null
++++ b/gr-uhd/lib/rfnoc_tx_streamer_impl.h
+@@ -0,0 +1,59 @@
++/* -*- c++ -*- */
++/*
++ * Copyright 2019 Ettus Research, a National Instruments Brand.
++ * Copyright 2020 Free Software Foundation, Inc.
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++#ifndef INCLUDED_GR_UHD_RFNOC_TX_STREAMER_IMPL_H
++#define INCLUDED_GR_UHD_RFNOC_TX_STREAMER_IMPL_H
++
++#include <gnuradio/uhd/rfnoc_tx_streamer.h>
++
++namespace gr {
++namespace uhd {
++
++class rfnoc_tx_streamer_impl : public rfnoc_tx_streamer
++{
++public:
++    rfnoc_tx_streamer_impl(rfnoc_graph::sptr graph,
++                           const size_t num_chans,
++                           const ::uhd::stream_args_t& stream_args,
++                           const size_t vlen);
++    ~rfnoc_tx_streamer_impl();
++
++    /***** API ***************************************************************/
++    std::string get_unique_id() const override { return d_unique_id; }
++
++    /***** GNU Radio API *****************************************************/
++    bool check_topology(int, int) override;
++    int work(int noutput_items,
++             gr_vector_const_void_star& input_items,
++             gr_vector_void_star& output_items) override;
++
++private:
++    //! Number of streaming channels
++    const size_t d_num_chans;
++    //! Bytes per item (e.g. 4 for sc16)
++    const size_t d_itemsize;
++    //! Input vector length
++    const size_t d_vlen;
++    //! Reference to the underlying graph
++    rfnoc_graph::sptr d_graph;
++    //! Stream args
++    ::uhd::stream_args_t d_stream_args;
++    //! Reference to the actual streamer
++    ::uhd::tx_streamer::sptr d_streamer;
++    //! Copy of the streamer's block ID
++    const std::string d_unique_id;
++    //! Stash for the TX metadata
++    ::uhd::tx_metadata_t d_metadata;
++    //! TX timeout value
++    double d_timeout = 1.0;
++};
++
++} // namespace uhd
++} // namespace gr
++
++#endif /* INCLUDED_GR_UHD_RFNOC_TX_STREAMER_IMPL_H */
+diff --git a/gr-uhd/swig/CMakeLists.txt b/gr-uhd/swig/CMakeLists.txt
+index f25d816b1..e4decbdef 100644
+--- a/gr-uhd/swig/CMakeLists.txt
++++ b/gr-uhd/swig/CMakeLists.txt
+@@ -12,6 +12,9 @@ include(GrPython)
+ include(GrSwig)
+ 
+ set(GR_SWIG_FLAGS -DGR_HAVE_UHD) #needed to parse uhd_swig.i
++if(ENABLE_UHD_RFNOC)
++    set(GR_SWIG_FLAGS ${GR_SWIG_FLAGS} -DGR_HAVE_RFNOC)
++endif(ENABLE_UHD_RFNOC)
+ 
+ set(GR_SWIG_INCLUDE_DIRS $<TARGET_PROPERTY:runtime_swig,INCLUDE_DIRECTORIES>)
+ set(GR_SWIG_TARGET_DEPS runtime_swig)
+diff --git a/gr-uhd/swig/uhd_swig.i b/gr-uhd/swig/uhd_swig.i
+index 68941248f..f07f3a41f 100644
+--- a/gr-uhd/swig/uhd_swig.i
++++ b/gr-uhd/swig/uhd_swig.i
+@@ -35,6 +35,14 @@
+ %ignore gr::uhd::usrp_sink::get_device;
+ %ignore gr::uhd::usrp_source::get_device;
+ 
++#ifdef GR_HAVE_RFNOC
++%ignore gr::uhd::rfnoc_graph::create_rx_streamer;
++%ignore gr::uhd::rfnoc_graph::create_tx_streamer;
++%ignore gr::uhd::rfnoc_graph::get_block_ref;
++%ignore gr::uhd::rfnoc_block::get_block_ref;
++%ignore gr::uhd::rfnoc_block::make_block_ref;
++#endif
++
+ ////////////////////////////////////////////////////////////////////////
+ // block headers
+ ////////////////////////////////////////////////////////////////////////
+@@ -44,6 +52,20 @@
+ #include <gnuradio/uhd/amsg_source.h>
+ %}
+ 
++#ifdef GR_HAVE_RFNOC
++%{
++#include <gnuradio/uhd/rfnoc_block.h>
++#include <gnuradio/uhd/rfnoc_graph.h>
++#include <gnuradio/uhd/rfnoc_tx_streamer.h>
++#include <gnuradio/uhd/rfnoc_rx_streamer.h>
++#include <gnuradio/uhd/rfnoc_block_generic.h>
++#include <gnuradio/uhd/rfnoc_ddc.h>
++#include <gnuradio/uhd/rfnoc_duc.h>
++#include <gnuradio/uhd/rfnoc_rx_radio.h>
++#include <gnuradio/uhd/rfnoc_tx_radio.h>
++%}
++#endif
++
+ %include "gnuradio/uhd/usrp_block.h"
+ 
+ ////////////////////////////////////////////////////////////////////////
+@@ -186,20 +208,47 @@
+ %include <gnuradio/uhd/usrp_sink.h>
+ %include <gnuradio/uhd/amsg_source.h>
+ 
++#ifdef GR_HAVE_RFNOC
++%include <gnuradio/uhd/rfnoc_graph.h>
++%include <gnuradio/uhd/rfnoc_block.h>
++%include <gnuradio/uhd/rfnoc_tx_streamer.h>
++%include <gnuradio/uhd/rfnoc_rx_streamer.h>
++%include <gnuradio/uhd/rfnoc_block_generic.h>
++%include <gnuradio/uhd/rfnoc_ddc.h>
++%include <gnuradio/uhd/rfnoc_duc.h>
++%include <gnuradio/uhd/rfnoc_rx_radio.h>
++%include <gnuradio/uhd/rfnoc_tx_radio.h>
++#endif
++
+ GR_SWIG_BLOCK_MAGIC2(uhd, usrp_source)
+ GR_SWIG_BLOCK_MAGIC2(uhd, usrp_sink)
+ GR_SWIG_BLOCK_MAGIC2(uhd, amsg_source)
+ 
++#ifdef GR_HAVE_RFNOC
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_graph)
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_tx_streamer);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_rx_streamer);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_block_generic);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_ddc);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_duc);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_rx_radio);
++GR_SWIG_BLOCK_MAGIC2(uhd, rfnoc_tx_radio);
++#endif
++
++
+ ////////////////////////////////////////////////////////////////////////
+ // device discovery (no need to %include device.hpp)
+ ////////////////////////////////////////////////////////////////////////
+ %{
+-static uhd::device_addrs_t find_devices_raw(const uhd::device_addr_t &dev_addr = uhd::device_addr_t()){
++static uhd::device_addrs_t find_devices_raw(
++    const uhd::device_addr_t &dev_addr = uhd::device_addr_t())
++{
+     return uhd::device::find(dev_addr);
+ }
+ %}
+ 
+-static uhd::device_addrs_t find_devices_raw(const uhd::device_addr_t &dev_addr = uhd::device_addr_t());
++static uhd::device_addrs_t find_devices_raw(
++    const uhd::device_addr_t &dev_addr = uhd::device_addr_t());
+ 
+ ////////////////////////////////////////////////////////////////////////
+ // helpful constants
+-- 
+2.17.1
+

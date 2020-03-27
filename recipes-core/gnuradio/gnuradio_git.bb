@@ -218,10 +218,10 @@ PV = "3.8.0.0"
 
 FILESPATHPKG_prepend = "gnuradio-git:"
 
-SRCREV ="cdbe702b484aa9a88613aef11d23cfc9aea21416"
+SRCREV ="b8cba61b2b1169004e660ec872fe703f1984880f"
 
 # Make it easy to test against branches
-GIT_BRANCH = "maint-3.8"
+GIT_BRANCH = "master"
 GITHUB_USER = "gnuradio"
 
 SRC_URI = "git://github.com/${GITHUB_USER}/gnuradio.git;branch=${GIT_BRANCH};protocol=https \
