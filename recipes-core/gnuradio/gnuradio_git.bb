@@ -12,7 +12,9 @@ PACKAGECONFIG ??= "qtgui5 grc zeromq"
 
 PACKAGECONFIG[qtgui5] = "-DENABLE_GR_QTGUI=ON \
                  ,-DENABLE_GR_QTGUI=OFF,qtbase qwt-qt5 python3-pyqt5 "
-PACKAGECONFIG[grc] = "-DENABLE_GRC=ON,-DENABLE_GRC=OFF, , "
+# PACKAGECONFIG grc enables the gnuradio-companion (GUI) executable (packaged to gnuradio-grc-gui);
+# the grcc executable (packaged to gnuradio-grc) is always activated
+PACKAGECONFIG[grc] = "-DENABLE_GRC=ON,-DENABLE_GRC=ON, , "
 PACKAGECONFIG[uhd] = "-DENABLE_GR_UHD=ON,-DENABLE_GR_UHD=OFF,uhd,"
 PACKAGECONFIG[logging] = "-DENABLE_GR_LOG=ON,-DENABLE_GR_LOG=OFF,log4cpp, "
 PACKAGECONFIG[orc] = "-DENABLE_ORC=ON,-DENABLE_ORC=OFF,orc, "
@@ -34,7 +36,8 @@ RDEPENDS_${PN} = "python3-core python3-audio python3-threading python3-codecs \
 "
 RRECOMMENDS_${PN} = "${GR_PACKAGES}"
 
-RDEPENDS_${PN}-grc = "python3-mako python3-pyyaml python3-pygobject gtk+3 cairo adwaita-icon-theme"
+RDEPENDS_${PN}-grc = "python3-mako python3-pyyaml"
+RDEPENDS_${PN}-grc-gui = "${PN}-grc python3-pygobject gtk+3 cairo adwaita-icon-theme"
 
 RDEPENDS_${PN}-qtgui = "python3-pyqt5 python3-sip3 virtual/qt5-fonts"
 
@@ -68,7 +71,7 @@ GR_PACKAGES = "gnuradio-analog gnuradio-audio gnuradio-blocks \
             "
 GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'qtgui4', 'gnuradio-qtgui', '', d)}"
 GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'qtgui5', 'gnuradio-qtgui, gnuradio-qtgui-fontslink', '', d)}"
-GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'grc', 'gnuradio-grc', '', d)}"
+GR_PACKAGES += "${@bb.utils.contains('PACKAGECONFIG', 'grc', 'gnuradio-grc-gui gnuradio-grc', 'gnuradio-grc', d)}"
 
 PACKAGES = "gnuradio-dbg gnuradio-staticdev gnuradio-dev ${GR_PACKAGES} gnuradio"
 
@@ -93,14 +96,16 @@ FILES_${PN}-filter = "${bindir}/gr_filter_design \
                       ${datadir}/gnuradio/filter"
 FILES_${PN}-gr = "${PYTHON_SITEPACKAGES_DIR}/gnuradio/gr \
                   ${datadir}/gnuradio/gr"
-FILES_${PN}-grc = "${bindir}/gnuradio-companion ${datadir}/gnuradio/grc \
+FILES_${PN}-grc-gui = "${bindir}/gnuradio-companion \
+                   ${datadir}/icons ${datadir}/mime \
+                   ${datadir}/gnuradio/grc/freedesktop"
+FILES_${PN}-grc = "${bindir}/grcc ${datadir}/gnuradio/grc \
                    ${PYTHON_SITEPACKAGES_DIR}/gnuradio/grc \
                    ${PYTHON_SITEPACKAGES_DIR}/grc_gnuradio \
-                   ${sysconfdir}/gnuradio/conf.d/grc.conf \
-                   ${datadir}/icons ${datadir}/mime"
+                   ${sysconfdir}/gnuradio/conf.d/grc.conf"
 FILES_${PN}-gru = "${PYTHON_SITEPACKAGES_DIR}/gnuradio/gru \
                    ${datadir}/gnuradio/gru"
-FILES_${PN}-gr-utils = "${bindir}/gr_plot* ${bindir}/grcc \
+FILES_${PN}-gr-utils = "${bindir}/gr_plot* \
                         ${bindir}/gr_read_file_metadata \
                         ${PYTHON_SITEPACKAGES_DIR}/gnuradio/plot_data* \
                         ${PYTHON_SITEPACKAGES_DIR}/gnuradio/plot_fft_base* \
@@ -249,4 +254,6 @@ EXTRA_OECMAKE = "\
 
 do_install_append() {
     ${@bb.utils.contains('PACKAGECONFIG', 'qtgui5', 'mkdir -p ${D}${libdir} && ln -sf ${datadir}/fonts/ttf ${D}${libdir}/fonts', '', d)}
+    ${@bb.utils.contains('PACKAGECONFIG', 'grc', '', 'rm -r ${D}${bindir}/gnuradio-companion ${D}${datadir}/icons ${D}${datadir}/mime', d)}
+    ${@bb.utils.contains('PACKAGECONFIG', 'grc', '', 'rm -r ${D}${datadir}/gnuradio/grc/freedesktop', d)}
 }
